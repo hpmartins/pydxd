@@ -3,11 +3,14 @@ import pandas as pd
 import json
 import re
 import copy
+from collections import OrderedDict
 
-class NumpyEncoder(json.JSONEncoder):
+class ParameterEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, np.ndarray):
             return obj.tolist()
+        if isinstance(obj, pd.DataFrame):
+            return json.loads(obj.to_json(orient='index'), object_pairs_hook=OrderedDict)
         return json.JSONEncoder.default(self, obj)
 
 class MultilayerSample(object):
@@ -21,15 +24,14 @@ class MultilayerSample(object):
 
     def to_json(self):
         tmp = copy.deepcopy(self.parameters)
-        tmp['Layers'] = tmp['Layers'].to_dict('index')
-        return json.dumps(tmp, cls=NumpyEncoder)
+        return json.dumps(tmp, cls=ParameterEncoder, indent=4)
 
     def to_parfile(self):
         C = self.parameters['Calc']
         V = self.parameters['Vacuum']
         S = self.parameters['Substrate']
         L = self.parameters['Layers']
-        
+
         parfile  = ''
         parfile += '{}\t{}\t{}\t{}\t{}\t{}\n'.format(*C['IncAngle'], C['CalcOrder'][0])
         parfile += '{}\t{}\t{}\t{}\t{}\t{}\n'.format(*C['PhEnergy'], C['CalcOrder'][1])
@@ -156,7 +158,7 @@ class MultilayerSample(object):
                         'OrbitalFile', 'BindingEnergy', 'IMFP', 'MolWeight', 'AtomZ',
                         'NumberOfAtoms', 'Density', 'NValence', 'Gap', 'Flag',
                         'RepDiffusionType', 'RepDiffusionVal']
-                        
+
         column_types = {'Name':'str', 'OptConstant':'str', 'RepetitionVal':'float', 'RepetitionCheck':'int',
                         'Thickness':'float', 'DiffusionType':'int', 'DiffusionVal':'float', 'OrbitalName':'str',
                         'OrbitalFile':'str', 'BindingEnergy':'float', 'IMFP':'float', 'MolWeight':'float',
@@ -185,7 +187,7 @@ class MultilayerSample(object):
                        'Flag': L_Flag,
 
         }
-        
+
         # for i in column_data.keys():
             # print('{} -> {}'.format(i, np.size(column_data[i])))
             # print('{}'.format(column_data[i]))
@@ -194,7 +196,7 @@ class MultilayerSample(object):
         Layers = Layers[column_names]
         Layers = Layers[Layers['Name'] != 'NaN']
 
-        # Layers = Layers.astype(column_types)
+        Layers = Layers.astype(column_types)
 
 
         # Vacuum

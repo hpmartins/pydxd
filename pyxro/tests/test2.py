@@ -14,5 +14,5 @@ teste.from_par(converted_data)
 with open('Template.par', 'r') as f:
     data = f.read()
 
-res = requests.post('http://localhost:5000/yxro/par2json', json=data)
+res = requests.post('http://localhost:5000/yxro/par2json', json=converted_data)
 print(res.content.decode('utf-8'))
