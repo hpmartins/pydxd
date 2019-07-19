@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import json
 import re
+import copy
 
 class NumpyEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -19,7 +20,7 @@ class MultilayerSample(object):
         self.__dict__.update(kwargs)
 
     def to_json(self):
-        tmp = self.parameters
+        tmp = copy.deepcopy(self.parameters)
         tmp['Layers'] = tmp['Layers'].to_dict('index')
         return json.dumps(tmp, cls=NumpyEncoder)
 
@@ -28,7 +29,7 @@ class MultilayerSample(object):
         V = self.parameters['Vacuum']
         S = self.parameters['Substrate']
         L = self.parameters['Layers']
-
+        
         parfile  = ''
         parfile += '{}\t{}\t{}\t{}\t{}\t{}\n'.format(*C['IncAngle'], C['CalcOrder'][0])
         parfile += '{}\t{}\t{}\t{}\t{}\t{}\n'.format(*C['PhEnergy'], C['CalcOrder'][1])
@@ -39,7 +40,7 @@ class MultilayerSample(object):
         parfile += '{}\t{}\n'.format(*C['IntMesh'])
 
         tmp = {}
-        for i in L.columns:
+        for i in L.columns.to_list():
             if i == 'RepetitionCheck':
                 tmp[i] = '\t'.join([str(a) for a in L[:-1].loc[:, i]])
             else:
@@ -62,7 +63,7 @@ class MultilayerSample(object):
         tmp['Gap'] += '\t{}'.format(S['Gap'])
         tmp['Flag'] += '\t{}'.format(S['Flag'])
 
-        for i in tmp.keys():
+        for i in L.columns.to_list():
             if not i.startswith('RepDiffusion'):
                 parfile += tmp[i] + '\n'
 
@@ -84,6 +85,7 @@ class MultilayerSample(object):
     def from_par(self, origdata):
 
         data = re.sub("[\t]{2,}", "\t", origdata)
+        data = re.sub(r"\r", "", data)
         data = re.sub(r"\t\n", "\n", data)
         data = np.array(data.split('\n'))
 
@@ -149,28 +151,50 @@ class MultilayerSample(object):
         L_Flag,          S_Flag                   = L_Flag[:-1],          L_Flag[-1]
 
         # Layers
-        column_names = np.array(['Name', 'OptConstant', 'RepetitionVal', 'RepetitionCheck',
-                                 'Thickness', 'DiffusionType', 'DiffusionVal', 'OrbitalName',
-                                 'OrbitalFile', 'BindingEnergy', 'IMFP', 'MolWeight', 'AtomZ',
-                                 'NumberOfAtoms', 'Density', 'NValence', 'Gap', 'Flag',
-                                 'RepDiffusionType', 'RepDiffusionVal'])
-
+        column_names = ['Name', 'OptConstant', 'RepetitionVal', 'RepetitionCheck',
+                        'Thickness', 'DiffusionType', 'DiffusionVal', 'OrbitalName',
+                        'OrbitalFile', 'BindingEnergy', 'IMFP', 'MolWeight', 'AtomZ',
+                        'NumberOfAtoms', 'Density', 'NValence', 'Gap', 'Flag',
+                        'RepDiffusionType', 'RepDiffusionVal']
+                        
         column_types = {'Name':'str', 'OptConstant':'str', 'RepetitionVal':'float', 'RepetitionCheck':'int',
                         'Thickness':'float', 'DiffusionType':'int', 'DiffusionVal':'float', 'OrbitalName':'str',
                         'OrbitalFile':'str', 'BindingEnergy':'float', 'IMFP':'float', 'MolWeight':'float',
                         'AtomZ':'int', 'NumberOfAtoms':'int', 'Density':'float', 'NValence':'int', 'Gap':'float',
                         'Flag':'int', 'RepDiffusionType':'int', 'RepDiffusionVal':'float'}
 
-        column_data = np.array([L_Name, L_OptConstant, L_RepetitionVal, L_RepetitionCheck,
-                                L_Thickness, L_DiffusionType, L_DiffusionVal, L_OrbitalName,
-                                L_OrbitalFile, L_BindingEnergy, L_IMFP, L_MolWeight, L_AtomZ,
-                                L_NumberOfAtoms, L_Density, L_NValence, L_Gap, L_Flag,
-                                L_RepDiffusionType, L_RepDiffusionVal]).T
+        column_data = {'Name': L_Name,
+                       'OptConstant': L_OptConstant,
+                       'RepetitionVal': L_RepetitionVal,
+                       'RepetitionCheck': L_RepetitionCheck,
+                       'Thickness': L_Thickness,
+                       'DiffusionType': L_DiffusionType,
+                       'DiffusionVal': L_DiffusionVal,
+                       'RepDiffusionType': L_RepDiffusionType,
+                       'RepDiffusionVal': L_RepDiffusionVal,
+                       'OrbitalName': L_OrbitalName,
+                       'OrbitalFile': L_OrbitalFile,
+                       'BindingEnergy': L_BindingEnergy,
+                       'IMFP': L_IMFP,
+                       'MolWeight': L_MolWeight,
+                       'AtomZ': L_AtomZ,
+                       'NumberOfAtoms': L_NumberOfAtoms,
+                       'Density': L_Density,
+                       'NValence': L_NValence,
+                       'Gap': L_Gap,
+                       'Flag': L_Flag,
 
-        Layers = pd.DataFrame(column_data, columns=column_names)
+        }
+        
+        # for i in column_data.keys():
+            # print('{} -> {}'.format(i, np.size(column_data[i])))
+            # print('{}'.format(column_data[i]))
+
+        Layers = pd.DataFrame.from_dict(data=column_data)
+        Layers = Layers[column_names]
         Layers = Layers[Layers['Name'] != 'NaN']
 
-        Layers = Layers.astype(column_types)
+        # Layers = Layers.astype(column_types)
 
 
         # Vacuum

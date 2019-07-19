@@ -19,6 +19,7 @@ setup(name='pyxro',
           'numpy',
           'scipy',
           'pandas',
+          'requests',
       ],
       include_package_data=True,
       zip_safe=False)
