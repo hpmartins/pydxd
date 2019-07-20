@@ -5,12 +5,12 @@ import re
 import copy
 from collections import OrderedDict
 
-class ParameterEncoder(json.JSONEncoder):
+class ParameterJSONEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, np.ndarray):
             return obj.tolist()
         if isinstance(obj, pd.DataFrame):
-            return json.loads(obj.to_json(orient='index'), object_pairs_hook=OrderedDict)
+            return json.loads(obj.reset_index().to_json(orient='records'), object_pairs_hook=OrderedDict)
         return json.JSONEncoder.default(self, obj)
 
 class MultilayerSample(object):
@@ -24,7 +24,7 @@ class MultilayerSample(object):
 
     def to_json(self):
         tmp = copy.deepcopy(self.parameters)
-        return json.dumps(tmp, cls=ParameterEncoder, indent=4)
+        return json.dumps(tmp, cls=ParameterJSONEncoder, indent=4)
 
     def to_parfile(self):
         C = self.parameters['Calc']
