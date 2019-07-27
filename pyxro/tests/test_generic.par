@@ -23,10 +23,10 @@ C1S.TXT	PT4F.TXT	TI2P.TXT	SI2P.TXT	SI1S.TXT	SI1S.TXT	MO3D.TXT	SI2P.TXT	NaN	NaN	N
 4	16	4	6	4	5	5	5	5	5	5	5	5	4
 0	9	1.1	0	1.1	0	0	0	0	0	0	0	0	1
 1	2	0	0	0	0	0	0	0	0	0	0	0	0
-3	1	0
+3	1	2
 1	3	2	5
 1	1	1	3	3	1	1	1	1	1	1	1	1
 0	0	0	7	0	0	0	0	0	0	0	0	0
-H:\Programas\yxro\ACS_DIR\
-H:\Programas\yxro\OPC_DIR\
+ACS_DIR
+OPC_DIR														
 1

@@ -7,26 +7,26 @@
 1.0	60.0
 C	Pt	Ti	SiO2	Si	MoSi2	Mo	MoSi2	Si
 C_1-5kev.txt	Pt-0-10keV.txt	Ti-0-10keV.txt	SiO2_0-10keV.dat	Si-0-10kev.txt	MoSi2_0-10keV.txt	Mo-0-10kev.txt	MoSi2_0-10kev(1).txt	Si-0-10kev.txt
-1	1	1	1	80	80	80	80
+1.0	1.0	1.0	1.0	80.0	80.0	80.0	80.0
 0	0	0	0	1	1	1
-100.0	27	72.75	29.2	20	19.3	1	10.6	4.2	0.0
+100.0	27.0	72.75	29.2	20.0	19.3	1.0	10.6	4.2	0.0
 3	3	3	3	1	1	1	1	1
-0.0	0	0	6	0	0	0	0	0
+0.0	0.0	0.0	6.0	0.0	0.0	0.0	0.0	0.0
 C1s	Pt4f	Ti2p	Si2p	Si1s	Si1s	Mo3d	Si2p	Si2p
 C1S.TXT	PT4F.TXT	TI2P.TXT	SI2P.TXT	SI1S.TXT	SI1S.TXT	MO3D.TXT	SI2P.TXT	SI2P.TXT
-284	531	1850	390	1850	50	50	50	0.0
--1	-1	-1	-1	-1	-1	-1	-1	-1.0
-12	60	28	96	28	10	10	10	28.0
+284.0	531.0	1850.0	390.0	1850.0	50.0	50.0	50.0	0.0
+-1.0	-1.0	-1.0	-1.0	-1.0	-1.0	-1.0	-1.0	-1.0
+12.0	60.0	28.0	96.0	28.0	10.0	10.0	10.0	28.0
 6	8	14	42	14	10	10	10	14.0
 1	2	1	1	1	1	1	1	1.0
-1	2.2	2.3	10.3	2.3	1	1	1	2.3
+1.0	2.2	2.3	10.3	2.3	1.0	1.0	1.0	2.3
 4	16	4	6	4	5	5	5	4.0
-0	9	1.1	0	1.1	0	0	0	1.0
+0.0	9.0	1.1	0.0	1.1	0.0	0.0	0.0	1.0
 1	2	0	0	0	0	0	0	0
 3	1	2
 1	3	2	5
 1	1	1	3	3	1	1	1
-0	0	0	7	0	0	0	0
-C:\Users\CBuechner\Documents\Science\membranes_exp\YXRO\yxro_Pt\yxro\ACS_DIR\
-C:\Users\CBuechner\Documents\Science\membranes_exp\YXRO\yxro_Pt\yxro\OPC_DIR\
+0.0	0.0	0.0	7.0	0.0	0.0	0.0	0.0
+ACS_DIR
+OPC_DIR
 1
