@@ -91,7 +91,6 @@ class MultilayerSample(object):
         data = re.sub(r"\t\n", "\n", data)
         data = np.array(data.split('\n'))
 
-
         CalcOrder = np.zeros(5)
 
         IncAngle_start,  IncAngle_step, IncAngle_end, IncAngle_fixed, IncAngle_val, CalcOrder[0] = data[0].split('\t')
@@ -101,31 +100,31 @@ class MultilayerSample(object):
         Depth_start,     Depth_step,    Depth_end,    Depth_fixed,    Depth_val,    CalcOrder[3] = data[4].split('\t')
         Wedge_start,     Wedge_step,    Wedge_end,    Wedge_fixed,    Wedge_val,    CalcOrder[4] = data[5].split('\t')
         IntMesh_checked, IntMesh_val                                                             = data[6].split('\t')
-        L_Name             = data[ 7].split('\t')
-        L_OptConstant      = data[ 8].split('\t')
-        L_RepetitionVal    = data[ 9].split('\t')
+        L_Name             = np.array(data[ 7].split('\t'))
+        L_OptConstant      = np.array(data[ 8].split('\t'))
+        L_RepetitionVal    = np.array(data[ 9].split('\t'))
         L_RepetitionCheck  = np.append(data[10].split('\t'), [0])
-        L_Thickness        = data[11].split('\t')
-        L_DiffusionType    = data[12].split('\t')
-        L_DiffusionVal     = data[13].split('\t')
-        L_OrbitalName      = data[14].split('\t')
-        L_OrbitalFile      = data[15].split('\t')
-        L_BindingEnergy    = data[16].split('\t')
-        L_IMFP             = data[17].split('\t')
-        L_MolWeight        = data[18].split('\t')
-        L_AtomZ            = data[19].split('\t')
-        L_NumberOfAtoms    = data[20].split('\t')
-        L_Density          = data[21].split('\t')
-        L_NValence         = data[22].split('\t')
-        L_Gap              = data[23].split('\t')
-        L_Flag             = data[24].split('\t')
-        Mode, Polar, WIT   = data[25].split('\t')
-        MCD                = data[26].split('\t')
-        L_RepDiffusionType = data[27].split('\t')
-        L_RepDiffusionVal  = data[28].split('\t')
-        ACS_Dir            = data[29]
-        OPC_Dir            = data[30]
-        SpotSizeArea       = data[31]
+        L_Thickness        = np.array(data[11].split('\t'))
+        L_DiffusionType    = np.array(data[12].split('\t'))
+        L_DiffusionVal     = np.array(data[13].split('\t'))
+        L_OrbitalName      = np.array(data[14].split('\t'))
+        L_OrbitalFile      = np.array(data[15].split('\t'))
+        L_BindingEnergy    = np.array(data[16].split('\t'))
+        L_IMFP             = np.array(data[17].split('\t'))
+        L_MolWeight        = np.array(data[18].split('\t'))
+        L_AtomZ            = np.array(data[19].split('\t'))
+        L_NumberOfAtoms    = np.array(data[20].split('\t'))
+        L_Density          = np.array(data[21].split('\t'))
+        L_NValence         = np.array(data[22].split('\t'))
+        L_Gap              = np.array(data[23].split('\t'))
+        L_Flag             = np.array(data[24].split('\t'))
+        Mode, Polar, WIT   = np.array(data[25].split('\t'))
+        MCD                = np.array(data[26].split('\t'))
+        L_RepDiffusionType = np.array(data[27].split('\t'))
+        L_RepDiffusionVal  = np.array(data[28].split('\t'))
+        ACS_Dir            = np.array(data[29])
+        OPC_Dir            = np.array(data[30])
+        SpotSizeArea       = np.array(data[31])
 
         IncAngle  = np.array([IncAngle_start,  IncAngle_step, IncAngle_end, IncAngle_fixed, IncAngle_val])
         PhEnergy  = np.array([PhEnergy_start,  PhEnergy_step, PhEnergy_end, PhEnergy_fixed, PhEnergy_val])
@@ -151,6 +150,9 @@ class MultilayerSample(object):
         L_NValence,      S_NValence               = L_NValence[:-1],      L_NValence[-1]
         L_Gap,           S_Gap                    = L_Gap[:-1],           L_Gap[-1]
         L_Flag,          S_Flag                   = L_Flag[:-1],          L_Flag[-1]
+
+        L_RepetitionVal = L_RepetitionVal[:L_Name.size]
+        L_RepetitionCheck = L_RepetitionCheck[:L_Name.size]
 
         # Layers
         column_names = ['Name', 'OptConstant', 'RepetitionVal', 'RepetitionCheck',
@@ -185,16 +187,12 @@ class MultilayerSample(object):
                        'NValence': L_NValence,
                        'Gap': L_Gap,
                        'Flag': L_Flag,
-
         }
-
-        # for i in column_data.keys():
-            # print('{} -> {}'.format(i, np.size(column_data[i])))
-            # print('{}'.format(column_data[i]))
 
         Layers = pd.DataFrame.from_dict(data=column_data)
         Layers = Layers[column_names]
         Layers = Layers[Layers['Name'] != 'NaN']
+        Layers.replace([np.inf, -np.inf, 'Inf', 'Infinity'], 0)
 
         Layers = Layers.astype(column_types)
 
@@ -205,6 +203,9 @@ class MultilayerSample(object):
             'DiffusionType': int(V_DiffusionType),
             'DiffusionVal' : float(V_DiffusionVal)
         }
+
+        if np.isinf(Vacuum['Thickness']):
+            Vacuum['Thickness'] = 100.0;
 
         # Substrate
         Substrate = {
@@ -223,6 +224,9 @@ class MultilayerSample(object):
             'Gap'          : float(S_Gap),
             'Flag'         : int(S_Flag)
         }
+
+        if np.isinf(Substrate['Thickness']):
+            Substrate['Thickness'] = 100.0;
 
 
         self.parameters = {
