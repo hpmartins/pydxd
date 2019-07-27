@@ -189,6 +189,11 @@ class MultilayerSample(object):
                        'Flag': L_Flag,
         }
 
+        for i in column_data.keys():
+            if np.size(column_data[i]) != np.size(column_data['Name']):
+                print('{} -> {}'.format(i, np.size(column_data[i])))
+                print('{}'.format(column_data[i]))
+
         Layers = pd.DataFrame.from_dict(data=column_data)
         Layers = Layers[column_names]
         Layers = Layers[Layers['Name'] != 'NaN']
