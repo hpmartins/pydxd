@@ -18,19 +18,66 @@ class MultilayerSample(object):
     _defaults = {
     }
 
+    column_names = ['Name', 'OptConstant', 'RepetitionVal', 'RepetitionCheck',
+                    'Thickness', 'DiffusionType', 'DiffusionVal', 'OrbitalName',
+                    'OrbitalFile', 'BindingEnergy', 'IMFP', 'MolWeight', 'AtomZ',
+                    'NumberOfAtoms', 'Density', 'NValence', 'Gap', 'Flag',
+                    'RepDiffusionType', 'RepDiffusionVal']
+
+    column_types = {'Name':'str', 'OptConstant':'str', 'RepetitionVal':'int', 'RepetitionCheck':'int',
+                    'Thickness':'float', 'DiffusionType':'int', 'DiffusionVal':'float', 'OrbitalName':'str',
+                    'OrbitalFile':'str', 'BindingEnergy':'float', 'IMFP':'float', 'MolWeight':'float',
+                    'AtomZ':'int', 'NumberOfAtoms':'int', 'Density':'float', 'NValence':'int', 'Gap':'float',
+                    'Flag':'int', 'RepDiffusionType':'int', 'RepDiffusionVal':'float'}
+
     def __init__(self, **kwargs):
         self.__dict__.update(self._defaults)
         self.__dict__.update(kwargs)
+
+    def from_json(self, data):
+        self.parameters = data
+        Layers = self.parameters['sample']['layers']
+        Layers = pd.DataFrame.from_dict(data=Layers)
+        Layers = Layers[self.column_names]
+        Layers = Layers.astype(self.column_types)
+        self.parameters['sample']['layers'] = Layers
 
     def to_json(self):
         tmp = copy.deepcopy(self.parameters)
         return json.dumps(tmp, cls=ParameterJSONEncoder, indent=4)
 
     def to_parfile(self):
-        C = self.parameters['Calc']
-        V = self.parameters['Vacuum']
-        S = self.parameters['Substrate']
-        L = self.parameters['Layers']
+        C = copy.deepcopy(self.parameters['calculation'])
+        V = copy.deepcopy(self.parameters['sample']['vacuum'])
+        S = copy.deepcopy(self.parameters['sample']['substrate'])
+        L = copy.deepcopy(self.parameters['sample']['layers'])
+
+        empty_layer = {
+                "Name": "-",
+                "OptConstant": "-",
+                "RepetitionVal": 1,
+                "RepetitionCheck": 0,
+                "Thickness": 0.0,
+                "DiffusionType": 1,
+                "DiffusionVal": 0.0,
+                "OrbitalName": "-",
+                "OrbitalFile": "-",
+                "BindingEnergy": 0.0,
+                "IMFP": -1.0,
+                "MolWeight": 0.0,
+                "AtomZ": 0,
+                "NumberOfAtoms": 0,
+                "Density": 0.0,
+                "NValence": 0,
+                "Gap": 0.0,
+                "Flag": 0,
+                "RepDiffusionType": 1,
+                "RepDiffusionVal": 0.0
+        }
+
+        if np.size(L, axis=0) < 13:
+            for i in np.arange(13 - np.size(L, axis=0)):
+                L = L.append(empty_layer, ignore_index=True)
 
         parfile  = ''
         parfile += '{}\t{}\t{}\t{}\t{}\t{}\n'.format(*C['IncAngle'], C['CalcOrder'][0])
@@ -85,7 +132,6 @@ class MultilayerSample(object):
         self.from_par(data)
 
     def from_par(self, origdata):
-
         data = re.sub("[\t]{2,}", "\t", origdata)
         data = re.sub(r"\r", "", data)
         data = re.sub(r"\t\n", "\n", data)
@@ -134,6 +180,7 @@ class MultilayerSample(object):
         InBetween = np.array([InBetween_fixed, InBetween_val])
         IntMesh   = np.array([IntMesh_checked, IntMesh_val])
 
+        # Separates Vacuum, Layers, and Substrate information
         L_Name,          S_Name                   = L_Name[:-1],          L_Name[-1]
         L_OptConstant,   S_OptConstant            = L_OptConstant[:-1],   L_OptConstant[-1]
         V_Thickness,     L_Thickness, S_Thickness = L_Thickness[0],       L_Thickness[1:-1], L_Thickness[-1]
@@ -155,18 +202,6 @@ class MultilayerSample(object):
         L_RepetitionCheck = L_RepetitionCheck[:L_Name.size]
 
         # Layers
-        column_names = ['Name', 'OptConstant', 'RepetitionVal', 'RepetitionCheck',
-                        'Thickness', 'DiffusionType', 'DiffusionVal', 'OrbitalName',
-                        'OrbitalFile', 'BindingEnergy', 'IMFP', 'MolWeight', 'AtomZ',
-                        'NumberOfAtoms', 'Density', 'NValence', 'Gap', 'Flag',
-                        'RepDiffusionType', 'RepDiffusionVal']
-
-        column_types = {'Name':'str', 'OptConstant':'str', 'RepetitionVal':'float', 'RepetitionCheck':'int',
-                        'Thickness':'float', 'DiffusionType':'int', 'DiffusionVal':'float', 'OrbitalName':'str',
-                        'OrbitalFile':'str', 'BindingEnergy':'float', 'IMFP':'float', 'MolWeight':'float',
-                        'AtomZ':'int', 'NumberOfAtoms':'int', 'Density':'float', 'NValence':'int', 'Gap':'float',
-                        'Flag':'int', 'RepDiffusionType':'int', 'RepDiffusionVal':'float'}
-
         column_data = {'Name': L_Name,
                        'OptConstant': L_OptConstant,
                        'RepetitionVal': L_RepetitionVal,
@@ -195,11 +230,12 @@ class MultilayerSample(object):
                 print('{}'.format(column_data[i]))
 
         Layers = pd.DataFrame.from_dict(data=column_data)
-        Layers = Layers[column_names]
-        Layers = Layers[Layers['Name'] != 'NaN']
+        Layers = Layers[self.column_names]
         Layers.replace([np.inf, -np.inf, 'Inf', 'Infinity'], 0)
+        Layers = Layers.astype(self.column_types)
 
-        Layers = Layers.astype(column_types)
+        Layers = Layers[Layers['Name'] != 'NaN']
+        Layers = Layers[Layers['Thickness'] != 0]
 
 
         # Vacuum
@@ -233,9 +269,8 @@ class MultilayerSample(object):
         if np.isinf(Substrate['Thickness']):
             Substrate['Thickness'] = 100.0;
 
-
         self.parameters = {
-            'Calc': {
+            'calculation': {
                 'Mode'        : int(Mode),
                 'Polarization': int(Polar),
                 'CalcOrder'   : np.array([int(a) for a in CalcOrder]),
@@ -252,9 +287,12 @@ class MultilayerSample(object):
                 'InBetween'   : np.array([float(a) for a in InBetween]),
                 'IntMesh'     : np.array([float(a) for a in IntMesh]),
             },
-            'Vacuum'   : Vacuum,
-            'Layers'   : Layers,
-            'Substrate': Substrate,
+            'sample': {
+                'vacuum'   : Vacuum,
+                'layers'   : Layers,
+                'substrate': Substrate,
+            },
+            'optimizer': {},
         }
 
         return True
