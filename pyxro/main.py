@@ -30,9 +30,8 @@ class MultilayerSample(object):
                     'AtomZ':'int', 'NumberOfAtoms':'int', 'Density':'float', 'NValence':'int', 'Gap':'float',
                     'Flag':'int', 'RepDiffusionType':'int', 'RepDiffusionVal':'float'}
 
-    def __init__(self, **kwargs):
+    def __init__(self):
         self.__dict__.update(self._defaults)
-        self.__dict__.update(kwargs)
 
     def from_json(self, data):
         self.parameters = data
