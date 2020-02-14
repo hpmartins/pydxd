@@ -32,12 +32,7 @@ class Sample(object):
         self.d_hkl = self.structure.lattice.d_hkl(self.hkl)
         self.hkl_norm = self.hkl/np.sqrt(np.dot(self.hkl, self.hkl))
         self.z_dist = np.dot(self.hkl_norm, self.symstruct.lattice.abc)
-        
-        Q = 0.0
-        Delta = 0.0
-        self.S_R = (1 + Q)/(1 - Q)
-        self.S_I = np.sqrt(1 + (Q*np.tan(np.radians(Delta)))**2)/(1 - Q)
-        self.Psi = np.arctan(Q*np.tan(np.radians(Delta)))
+    
         
         tmpa = np.random.randn(3)
         tmpa -= tmpa.dot(self.hkl_norm) * self.hkl_norm
@@ -124,8 +119,7 @@ class Sample(object):
         gamma = 1e10*(r0*self.wavelength_energy_relation(energy)**2)/(np.pi*self.structure.volume)
     
         # Debye-Waller correction to F_H and FH_Hb: exp(-Bs²), with B = 8*pi*<u**2>, s = sin(th)/lambda = 1/(2*d_hkl)
-        # s = 1/(2*self.d_hkl)
-        # DWF = np.exp(-self.DW_B*s**2)
+        DW_correction = self.DWF/(2*self.d_hkl)**2
         
         for idx, _ in enumerate(self.structure.sites):
             site = self.structure.sites[idx]
@@ -210,7 +204,7 @@ class Sample(object):
             self.Refl_conv_Mono = np.correlate(self.Refl, self.Mono.Squared_Refl, mode='same')
             self.Phase_conv_Mono = np.correlate(self.Phase, self.Mono.Squared_Refl, mode='same')
     
-    def calc_sw_cohpos(self, cohfra, cohpos, Q = 0.0, Delta = 0.0):
+    def calc_sw_cohpos(self, CF, CP, Q = 0.0, Delta = 0.0):
         if self.Mono:
             R = self.Refl_conv_Mono
             P = self.Phase_conv_Mono
@@ -222,7 +216,7 @@ class Sample(object):
         S_I = np.sqrt(1 + (Q*np.tan(np.radians(Delta)))**2)/(1 - Q)
         Psi = np.arctan(Q*np.tan(np.radians(Delta)))
         
-        return 1 + S_R*R + 2*np.abs(S_I)*np.sqrt(R)*cohfra*np.cos(P - 2*np.pi*cohpos + Psi)
+        return 1 + S_R*R + 2*np.abs(S_I)*np.sqrt(R)*CF*np.cos(P - 2*np.pi*CP + Psi)
     
     def calc_yield(self):
         self.calc_imfp()
