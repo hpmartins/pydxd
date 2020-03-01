@@ -28,11 +28,12 @@ class Sample(object):
         self.symstruct = SpacegroupAnalyzer(self.structure).get_symmetrized_structure()
 
         # Debye-Waller factor
-        self.DWF = 0.0
+        self.DWF = 1.0
         
         # Calculates interplanar distance
         self.hkl = np.array(hkl)
         self.d_hkl = self.structure.lattice.d_hkl(self.hkl)
+        self.stol = 1/(2*self.d_hkl)
         self.hkl_norm = self.hkl/np.sqrt(np.dot(self.hkl, self.hkl))
         self.z_dist = np.dot(self.hkl_norm, self.structure.lattice.abc)
     
@@ -83,12 +84,12 @@ class Sample(object):
                 self.energy_Bragg = energy
 
             self.lambda_Bragg = self.wavelength_energy_relation(self.energy_Bragg)
-            self.theta_Bragg  = np.degrees(np.arcsin(self.lambda_Bragg/(2*self.d_hkl)))
+            self.theta_Bragg  = np.degrees(np.arcsin(self.stol*self.lambda_Bragg))
         elif mode == 'energy':
             if angle == 0.0:
                 self.energy_Bragg = energy
                 self.lambda_Bragg = self.wavelength_energy_relation(self.energy_Bragg)
-                self.theta_Bragg  = np.degrees(np.arcsin(self.lambda_Bragg/(2*self.d_hkl)))
+                self.theta_Bragg  = np.degrees(np.arcsin(self.stol*self.lambda_Bragg))
             else:
                 self.theta_Bragg = angle
                 self.lambda_Bragg = 2*self.d_hkl*np.sin(np.radians(self.theta_Bragg))
@@ -96,7 +97,7 @@ class Sample(object):
 
         self.theta_Bragg_rad = np.radians(self.theta_Bragg)
     
-    def calc_imfp(self, Ek=0):
+    def imfp(self, Ek=0):
         density = self.symstruct.density
         formula = pt.formula(self.symstruct.formula)
         M_weight = formula.mass
@@ -105,10 +106,6 @@ class Sample(object):
         for i,k in formula.atoms.items():
             v.append(k*ml.element(str(i)).nvalence())
         N_V = np.sum(v)
-        if Ek == 0:
-            E_kinetic = self.energy_Bragg
-        else:
-            E_kinetic = Ek
         E_p = 28.8 * np.sqrt((N_V * density) / M_weight)  
         beta = (-0.10 + (0.944 / (np.sqrt(E_p**2 + E_g**2))) + 
                (0.069 * (density**0.1))) 
@@ -119,7 +116,7 @@ class Sample(object):
         imfp = (E_kinetic / ((E_p**2) * ((beta * np.log(gamma * E_kinetic)) 
                - (C_func / E_kinetic) + (D_func / E_kinetic**2))))
         
-        self.imfp = imfp
+        return imfp
         
     def calc_susceptibility(self, energy):
         F_0  = 0
@@ -140,13 +137,13 @@ class Sample(object):
             prefac = (f0 - site.specie.number + f1 + 1j*f2)
             
             F_0  += (f1 + 1j*f2)
-            F_H  += prefac*np.exp(2j*np.pi*self.zpos[idx]/self.d_hkl - self.DWF)
-            F_Hb += prefac*np.exp(2j*np.pi*self.zpos[idx]/self.d_hkl - self.DWF)
+            F_H  += prefac*self.DWF*np.exp(2j*np.pi*self.cohpos[idx])
+            F_Hb += prefac*self.DWF*np.exp(2j*np.pi*self.cohpos[idx])
         
         return gamma*F_0, gamma*F_H, gamma*F_Hb
 
 
-    def calc_reflectivity(self, delta=10, dx=0, Mono=False):
+    def calc_reflectivity(self, delta=20, Mono=False):
         Chi_0, Chi_H, Chi_Hb = self.calc_susceptibility(self.energy_Bragg)
         
         if self.polarization == 'pi':
@@ -165,13 +162,7 @@ class Sample(object):
         self.extinct_length = (self.lambda_Bragg*np.sin(self.theta_Bragg)/(np.pi*np.sqrt(np.abs(Chi_H*Chi_Hb))))
         
         if self.mode == 'angular':
-            if dx == 0:
-                dx = 0.001
-            if delta == 0:
-                delta = 40*self.angle_range
-            npts = int(2*delta/dx)+1
-            x_range = np.linspace(-delta, delta, npts)
-            
+            x_range = np.linspace(-delta*self.angle_range, delta*self.angle_range, 1001)
             xarg = np.radians(x_range)
             targ = np.radians(self.theta_Bragg)
             if self.theta_Bragg < self.backscattering_angle:
@@ -179,13 +170,7 @@ class Sample(object):
             else:
                 first_term = np.sqrt(1 + 2*xarg**2 * (np.sin(2*targ))**2 + 2*b*xarg*np.sin(2*targ)) - 1
         elif self.mode == 'energy':
-            if dx == 0:
-                dx = 0.01
-            if delta == 0:
-                delta = 40*self.energy_range
-            npts = int(2*delta/dx)+1
-            x_range = np.linspace(-delta, delta, npts)
-            
+            x_range = np.linspace(-delta*self.energy_range, delta*self.energy_range, 1001)
             xarg = x_range/(x_range + self.energy_Bragg)
             targ = np.radians(self.theta_Bragg)
             first_term = 2*b*xarg*(np.sin(targ))**2
@@ -206,16 +191,14 @@ class Sample(object):
         
         if self.Mono:
             self.Mono.set_mode(self.mode, energy=self.energy_Bragg)
-            self.Mono.calc_reflectivity(delta=delta, dx=dx)
+            self.Mono.calc_reflectivity(delta=delta)
             
             shift_sample = (self.angle_offset if self.mode == 'angular' else self.energy_offset)
             shift_mono = (self.Mono.angle_offset if self.mode == 'angular' else self.Mono.energy_offset)
 
-            self.Refl_shifted = np.interp(self.x_range, self.x_range - shift_sample, self.Refl)
-            self.Phase_shifted = np.interp(self.x_range, self.x_range - shift_sample, self.Phase)
             self.Mono.Refl_shifted = np.interp(self.Mono.x_range, self.Mono.x_range - shift_mono, self.Mono.Refl)
-            
             self.Mono.Squared_Refl = self.Mono.Refl_shifted**2/np.sum(self.Mono.Refl_shifted**2)
+
             self.Refl_conv_Mono = np.correlate(self.Refl, self.Mono.Squared_Refl, mode='same')
             self.Phase_conv_Mono = np.correlate(self.Phase, self.Mono.Squared_Refl, mode='same')
     
@@ -236,25 +219,24 @@ class Sample(object):
     def calc_sw_cohpos(self, CF, CP, Q = 0.0, Delta = 0.0):
         return self.calc_RC(CF, CP, Q, Delta)
     
-    def calc_yield(self, KE):
-        self.calc_imfp()
-        lambda_IMFP = self.imfp * np.sin(np.radians(self.theta_Bragg))
+    # def calc_yield(self, KE):
+    #     lambda_IMFP = self.imfp() * np.sin(np.radians(self.theta_Bragg))
 
-        Y = {}
-        for idx, sites in enumerate(self.symstruct.equivalent_sites):
-            tmpY = self.calc_sw_cohpos(self.cohfra[idx], self.cohpos[idx])
-            Y[idx] = np.zeros((len(tmpY), self.number_of_ucs))
-            for uc in np.arange(self.number_of_ucs):
-                Y[idx][:, uc] = tmpY * np.exp(-uc*self.z_dist/lambda_IMFP)
-            Y[idx] = Y[idx].sum(axis=1)/self.number_of_ucs
-        self.Y = Y
+    #     Y = {}
+    #     for idx, sites in enumerate(self.symstruct.equivalent_sites):
+    #         tmpY = self.calc_sw_cohpos(self.cohfra[idx], self.cohpos[idx])
+    #         Y[idx] = np.zeros((len(tmpY), self.number_of_ucs))
+    #         for uc in np.arange(self.number_of_ucs):
+    #             Y[idx][:, uc] = tmpY * np.exp(-uc*self.z_dist/lambda_IMFP)
+    #         Y[idx] = Y[idx].sum(axis=1)/self.number_of_ucs
+    #     self.Y = Y
         
-        if self.toplayer != None:
-            self.toplayer.Y = {}
-            uniq_cohpos, uniq_idx = np.unique(list(self.toplayer.cohpos.values()), return_index=True)
-            for idx in uniq_idx:
-                name = self.toplayer.structure.sites[idx].specie.name + str(idx)
-                self.toplayer.Y[name] = self.calc_sw_cohpos(self.toplayer.cohfra[idx], self.toplayer.cohpos[idx])
+    #     if self.toplayer != None:
+    #         self.toplayer.Y = {}
+    #         uniq_cohpos, uniq_idx = np.unique(list(self.toplayer.cohpos.values()), return_index=True)
+    #         for idx in uniq_idx:
+    #             name = self.toplayer.structure.sites[idx].specie.name + str(idx)
+    #             self.toplayer.Y[name] = self.calc_sw_cohpos(self.toplayer.cohfra[idx], self.toplayer.cohpos[idx])
 
     def Electric_Field(self, z, zmin):
         zpos = z - zmin
