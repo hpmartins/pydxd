@@ -12,8 +12,14 @@ import matplotlib.pyplot as plt
 from matplotlib import cm
 from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
 from pymatgen import Structure
+import lmfit
 
 class Sample(object):
+    def gaussian(sigma, x):
+        g = lmfit.lineshapes.gaussian()
+        g = scipy_norm.pdf(array, 0, sigma)
+        return g/sum(g)
+
     def __init__(self, filename='', hkl=[1, 1, 1], nuc=1, structure=None):
         # Number of unit cells to consider. This is only useful when using the calc_yield() function
         self.number_of_ucs = nuc
@@ -143,7 +149,7 @@ class Sample(object):
         return gamma*F_0, gamma*F_H, gamma*F_Hb
 
 
-    def calc_reflectivity(self, delta=20, Mono=False):
+    def calc_reflectivity(self, delta=20, npts=1001, Mono=False, gwidth=False):
         Chi_0, Chi_H, Chi_Hb = self.calc_susceptibility(self.energy_Bragg)
         
         if self.polarization == 'pi':
@@ -162,7 +168,7 @@ class Sample(object):
         self.extinct_length = (self.lambda_Bragg*np.sin(self.theta_Bragg)/(np.pi*np.sqrt(np.abs(Chi_H*Chi_Hb))))
         
         if self.mode == 'angular':
-            x_range = np.linspace(-delta*self.angle_range, delta*self.angle_range, 1001)
+            x_range = np.linspace(-delta*self.angle_range, delta*self.angle_range, npts)
             xarg = np.radians(x_range)
             targ = np.radians(self.theta_Bragg)
             if self.theta_Bragg < self.backscattering_angle:
@@ -170,7 +176,7 @@ class Sample(object):
             else:
                 first_term = np.sqrt(1 + 2*xarg**2 * (np.sin(2*targ))**2 + 2*b*xarg*np.sin(2*targ)) - 1
         elif self.mode == 'energy':
-            x_range = np.linspace(-delta*self.energy_range, delta*self.energy_range, 1001)
+            x_range = np.linspace(-delta*self.energy_range, delta*self.energy_range, npts)
             xarg = x_range/(x_range + self.energy_Bragg)
             targ = np.radians(self.theta_Bragg)
             first_term = 2*b*xarg*(np.sin(targ))**2
@@ -191,16 +197,20 @@ class Sample(object):
         
         if self.Mono:
             self.Mono.set_mode(self.mode, energy=self.energy_Bragg)
-            self.Mono.calc_reflectivity(delta=delta)
+            self.Mono.calc_reflectivity(delta=delta, npts=npts)
             
-            shift_sample = (self.angle_offset if self.mode == 'angular' else self.energy_offset)
             shift_mono = (self.Mono.angle_offset if self.mode == 'angular' else self.Mono.energy_offset)
-
             self.Mono.Refl_shifted = np.interp(self.Mono.x_range, self.Mono.x_range - shift_mono, self.Mono.Refl)
+            
+            if gwidth and gwidth > 0.0:
+                gsmear = lmfit.lineshapes.gaussian(self.Mono.x_range, center = self.Mono.x_range.mean(), sigma = gwidth)
+                gsmear = gsmear / sum(gsmear)
+                self.Mono.Refl_shifted = np.convolve(self.Mono.Refl_shifted, gsmear, mode='same')
+
             self.Mono.Squared_Refl = self.Mono.Refl_shifted**2/np.sum(self.Mono.Refl_shifted**2)
 
-            self.Refl_conv_Mono = np.correlate(self.Refl, self.Mono.Squared_Refl, mode='same')
-            self.Phase_conv_Mono = np.correlate(self.Phase, self.Mono.Squared_Refl, mode='same')
+            self.Refl_conv_Mono = np.convolve(self.Refl, self.Mono.Squared_Refl, mode='same')
+            self.Phase_conv_Mono = np.convolve(self.Phase, self.Mono.Squared_Refl, mode='same')
     
     def calc_RC(self, CF, CP, Q = 0.0, Delta = 0.0):
         if self.Mono:
@@ -279,8 +289,8 @@ class Sample(object):
             print('{:>2}: {:>6.3f} {:>4.2}'.format(site, self.zpos[idx], self.cohpos[idx]))
         
 
-def plot_Electric_Field(Sample, colors=None, atoms=False, layers=False):
-    f, axl = plt.subplots(1, 2, sharey=True, figsize=(5,8), gridspec_kw=dict(width_ratios=[3, 1]))
+def plot_Electric_Field(Sample, colors=None, atoms=False, layers=False, shift=0.0):
+    f, axl = plt.subplots(1, 2, sharey=True, figsize=(5,6), gridspec_kw=dict(width_ratios=[3, 1]))
     
     ax = axl[0]
     ax.minorticks_on()
@@ -304,7 +314,7 @@ def plot_Electric_Field(Sample, colors=None, atoms=False, layers=False):
     for idx, z in enumerate(z_range):
         ElectricField[idx, :] = Sample.Electric_Field(z, z_range.min())
     
-    ttx, tty = np.meshgrid(Sample.x_range, z_range)
+    ttx, tty = np.meshgrid(Sample.x_range, z_range + shift)
     efplot = ax.pcolormesh(ttx, tty, ElectricField, cmap=cm.seismic)
     plt.colorbar(efplot)
     # ax.plot(Sample.x_range, Sample.Refl_conv_Mono, c='k')
@@ -322,17 +332,20 @@ def plot_Electric_Field(Sample, colors=None, atoms=False, layers=False):
             else:
                 clr = 'r'
                 
+            if zpos+shift > 0:
+                zpos -= Sample.z_dist
+                
             if atoms:
-                axl[0].scatter(offset, zpos, c=clr, edgecolor='w', s=100, zorder=2)
+                axl[0].scatter(offset, zpos + shift, c=clr, edgecolor='w', s=100, zorder=2)
 
             CP = np.remainder(zpos / Sample.d_hkl, 1)
             SW = Sample.calc_RC(1.0, CP)
-            axl[1].plot(Sample.x_range, SW - 1 + zpos, c=clr)
+            axl[1].plot(Sample.x_range, SW - 1 + zpos + shift, c=clr)
             
     ax.set_ylabel('Depth ($\AA$)')
     axl[0].set_xlim(- trim + offset, trim + offset)
     axl[1].set_xlim(- trim + offset, trim + offset)
-    ax.set_ylim(z_range.min(), z_range.max() + Sample.d_hkl)
+    ax.set_ylim(z_range.min() + shift, z_range.max() + Sample.d_hkl + shift)
     
     plt.tight_layout()
     plt.subplots_adjust(wspace=0.0)
