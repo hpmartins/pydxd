@@ -80,7 +80,7 @@ class MultilayerSample(object):
         self.layers    = {}
         self.substrate = {}
         self.optimizer = {}
-        
+
     def set_substrate(self, substrate_data = empty_layer):
         self.substrate = copy.deepcopy(self.empty_layer)
         
@@ -89,7 +89,7 @@ class MultilayerSample(object):
         
         if self.substrate['Thickness'] == 0:
             self.substrate['Thickness'] = 100.0
-            
+
     def set_vacuum(self, vacuum_data = def_vacuum):
         self.vacuum = copy.deepcopy(self.def_vacuum)
         
@@ -98,7 +98,7 @@ class MultilayerSample(object):
         
         if self.vacuum['Thickness'] == 0:
             self.vacuum['Thickness'] = 100.0
-            
+
     def add_layer(self, layer_data = empty_layer):
         new_layer = copy.deepcopy(self.empty_layer)
         for k,v in layer_data.items():
