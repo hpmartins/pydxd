@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 import json
-import re
+import re 
 import copy
 from collections import OrderedDict
 
@@ -14,8 +14,30 @@ class ParameterJSONEncoder(json.JSONEncoder):
         return json.JSONEncoder.default(self, obj)
 
 class MultilayerSample(object):
-
     _defaults = {
+            'calculation': {
+                'Mode'        : 3,
+                'Polarization': 2,
+                'CalcOrder'   : np.array([3, 2, 1, 5, 4]),
+                'ACS'         : 'ACS_Dir',
+                'OPC'         : 'OPC_Dir',
+                'SpotSizeArea': 0,
+                'WIT'         : 0,
+                'MCD'         : np.zeros(4),
+                'IncAngle'    : np.zeros(5),
+                'PhEnergy'    : np.zeros(5),
+                'TakeOff'     : np.zeros(5),
+                'Depth'       : np.zeros(5),
+                'Wedge'       : np.zeros(5),
+                'InBetween'   : np.array([1, 90]),
+                'IntMesh'     : np.array([1, 60]),
+            },
+            'sample': {
+                'vacuum'   : {},
+                'layers'   : {},
+                'substrate': {},
+            },
+            'optimizer': {},
     }
 
     column_names = ['Name', 'OptConstant', 'RepetitionVal', 'RepetitionCheck',
@@ -32,24 +54,36 @@ class MultilayerSample(object):
 
     def __init__(self):
         self.__dict__.update(self._defaults)
+        
+    def set_substrate(self, substrate_data):
+        self.substrate = substrate_data
 
     def from_json(self, data):
-        self.parameters = data
-        Layers = self.parameters['sample']['layers']
+        tmp = json.loads(data)
+        
+        self.calculation = tmp['calculation']
+        self.sample = tmp['sample']
+        self.optimizer = tmp['optimizer']
+        
+        Layers = self.sample['layers']
         Layers = pd.DataFrame.from_dict(data=Layers)
         Layers = Layers[self.column_names]
         Layers = Layers.astype(self.column_types)
-        self.parameters['sample']['layers'] = Layers
+        self.sample['layers'] = Layers
 
     def to_json(self):
-        tmp = copy.deepcopy(self.parameters)
+        tmp = {
+            'calculation': self.calculation,
+            'sample': self.sample,
+            'optimizer': self.optimizer
+        }
         return json.dumps(tmp, cls=ParameterJSONEncoder, indent=4)
 
-    def to_parfile(self):
-        C = copy.deepcopy(self.parameters['calculation'])
-        V = copy.deepcopy(self.parameters['sample']['vacuum'])
-        S = copy.deepcopy(self.parameters['sample']['substrate'])
-        L = copy.deepcopy(self.parameters['sample']['layers'])
+    def to_yxrofile(self):
+        C = copy.deepcopy(self.calculation)
+        V = copy.deepcopy(self.sample['vacuum'])
+        S = copy.deepcopy(self.sample['substrate'])
+        L = copy.deepcopy(self.sample['layers'])
 
         empty_layer = {
                 "Name": "-",
@@ -78,14 +112,14 @@ class MultilayerSample(object):
             for i in np.arange(13 - np.size(L, axis=0)):
                 L = L.append(empty_layer, ignore_index=True)
 
-        parfile  = ''
-        parfile += '{}\t{}\t{}\t{}\t{}\t{}\n'.format(*C['IncAngle'], C['CalcOrder'][0])
-        parfile += '{}\t{}\t{}\t{}\t{}\t{}\n'.format(*C['PhEnergy'], C['CalcOrder'][1])
-        parfile += '{}\t{}\t{}\t{}\t{}\t{}\n'.format(*C['TakeOff'],  C['CalcOrder'][2])
-        parfile += '{}\t{}\n'.format(*C['InBetween'])
-        parfile += '{}\t{}\t{}\t{}\t{}\t{}\n'.format(*C['Depth'],    C['CalcOrder'][3])
-        parfile += '{}\t{}\t{}\t{}\t{}\t{}\n'.format(*C['Wedge'],    C['CalcOrder'][4])
-        parfile += '{}\t{}\n'.format(*C['IntMesh'])
+        yxrofile  = ''
+        yxrofile += '{}\t{}\t{}\t{}\t{}\t{}\n'.format(*C['IncAngle'], C['CalcOrder'][0])
+        yxrofile += '{}\t{}\t{}\t{}\t{}\t{}\n'.format(*C['PhEnergy'], C['CalcOrder'][1])
+        yxrofile += '{}\t{}\t{}\t{}\t{}\t{}\n'.format(*C['TakeOff'],  C['CalcOrder'][2])
+        yxrofile += '{}\t{}\n'.format(*C['InBetween'])
+        yxrofile += '{}\t{}\t{}\t{}\t{}\t{}\n'.format(*C['Depth'],    C['CalcOrder'][3])
+        yxrofile += '{}\t{}\t{}\t{}\t{}\t{}\n'.format(*C['Wedge'],    C['CalcOrder'][4])
+        yxrofile += '{}\t{}\n'.format(*C['IntMesh'])
 
         tmp = {}
         for i in L.columns.to_list():
@@ -113,24 +147,24 @@ class MultilayerSample(object):
 
         for i in L.columns.to_list():
             if not i.startswith('RepDiffusion'):
-                parfile += tmp[i] + '\n'
+                yxrofile += tmp[i] + '\n'
 
-        parfile += '{}\t{}\t{}\n'.format(C['Mode'], C['Polarization'], C['WIT'])
-        parfile += '{}\t{}\t{}\t{}\n'.format(*C['MCD'])
-        parfile += '{}\n'.format(tmp['RepDiffusionType'])
-        parfile += '{}\n'.format(tmp['RepDiffusionVal'])
-        parfile += '{}\n'.format(C['ACS'])
-        parfile += '{}\n'.format(C['OPC'])
-        parfile += '{}\n'.format(C['SpotSizeArea'])
+        yxrofile += '{}\t{}\t{}\n'.format(C['Mode'], C['Polarization'], C['WIT'])
+        yxrofile += '{}\t{}\t{}\t{}\n'.format(*C['MCD'])
+        yxrofile += '{}\n'.format(tmp['RepDiffusionType'])
+        yxrofile += '{}\n'.format(tmp['RepDiffusionVal'])
+        yxrofile += '{}\n'.format(C['ACS'])
+        yxrofile += '{}\n'.format(C['OPC'])
+        yxrofile += '{}\n'.format(C['SpotSizeArea'])
 
-        return parfile
+        return yxrofile
 
-    def from_parfile(self, par_filename):
+    def from_yxrofile(self, par_filename):
         with open(par_filename, 'r') as f:
-            data = f.read()
-        self.from_par(data)
-
-    def from_par(self, origdata):
+            origdata = f.read()
+        
+        self.origdata = origdata
+        
         data = re.sub("[\t]{2,}", "\t", origdata)
         data = re.sub(r"\r", "", data)
         data = re.sub(r"\t\n", "\n", data)
@@ -268,8 +302,7 @@ class MultilayerSample(object):
         if np.isinf(Substrate['Thickness']):
             Substrate['Thickness'] = 100.0;
 
-        self.parameters = {
-            'calculation': {
+        self.calculation: {
                 'Mode'        : int(Mode),
                 'Polarization': int(Polar),
                 'CalcOrder'   : np.array([int(a) for a in CalcOrder]),
@@ -285,13 +318,14 @@ class MultilayerSample(object):
                 'Wedge'       : np.array([float(a) for a in Wedge]),
                 'InBetween'   : np.array([float(a) for a in InBetween]),
                 'IntMesh'     : np.array([float(a) for a in IntMesh]),
-            },
-            'sample': {
+        }
+        
+        self.sample = {
                 'vacuum'   : Vacuum,
                 'layers'   : Layers,
                 'substrate': Substrate,
-            },
-            'optimizer': {},
         }
+        
+        self.optimizer = {}
 
         return True
