@@ -3,6 +3,8 @@ import pandas as pd
 import json
 import re 
 import copy
+import periodictable as pt
+import mendeleev as ml
 
 class ParameterJSONEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -109,6 +111,12 @@ class MultilayerSample(object):
             Layers = pd.concat([self.layers, pd_new_layer])
 
         self.layers = Layers[self.column_names].astype(self.column_types)
+
+    def set_layers_info(self):
+        for i, layer in self.layers.iterrows():
+            formula = pt.formula(layer['Formula'])
+            self.layers.loc[i, 'MolWeight'] = formula.mass
+            self.layers.loc[i, 'NVal'] = np.sum([v*ml.element(str(k)).nvalence() for k,v in formula.atoms.items()])
 
     def from_json(self, data):
         tmp = json.loads(data)
