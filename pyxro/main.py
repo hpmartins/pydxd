@@ -4,6 +4,7 @@ import json
 import re 
 import copy
 import periodictable as pt
+import periodictable.xsf as xsf
 import mendeleev as ml
 
 class ParameterJSONEncoder(json.JSONEncoder):
@@ -132,6 +133,20 @@ class MultilayerSample(object):
             formula = pt.formula(layer['Formula'])
             self.layers.loc[i, 'MolWeight'] = formula.mass
             self.layers.loc[i, 'NVal'] = np.sum([v*ml.element(str(k)).nvalence() for k,v in formula.atoms.items()])
+
+    def get_optical_constants(self):
+        self.opc = {}
+        if self.calculation['PhEnergy'][3] == 1:
+            energy = np.linspace(self.calculation['PhEnergy'][4] - 5, self.calculation['PhEnergy'][4] + 5, 31)
+        elif self.calculation['IncAngle'][3] == 1:
+            energy = np.linspace(self.calculation['PhEnergy'][0] - 5, self.calculation['PhEnergy'][2] + 5, 51)
+            
+        for i, v in self.layers[['Formula', 'Density']].iterrows():
+            if v.Formula not in self.opc:
+                ior = 1 - xsf.index_of_refraction(v.Formula, density = v.Density, energy = energy/1000)
+                self.opc[v.Formula] = np.column_stack((energy, np.real(ior), np.imag(ior)))
+        
+        return self.opc
 
     def from_json(self, data):
         tmp = json.loads(data)
