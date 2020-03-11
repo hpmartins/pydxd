@@ -62,7 +62,7 @@ class MultilayerSample(object):
         self.calculation = {
             'Mode'        : 3,
             'Polarization': 2,
-            'CalcOrder'   : np.array([3, 2, 1, 5, 4]),
+            'Order'       : np.array([3, 2, 1, 5, 4]),
             'ACSDir'      : 'ACS_Dir',
             'OPCDir'      : 'OPC_Dir',
             'SpotSizeArea': 0,
@@ -81,6 +81,21 @@ class MultilayerSample(object):
         self.substrate = {}
         self.optimizer = {}
 
+    def set_calculation(self, mode = 'photoemission', angle = None, energy = None):
+        if mode == 'photoemission':
+            self.calculation['Mode'] = 3
+            self.calculation['Order'] = np.array([3, 2, 1, 5, 4])
+        
+        if isinstance(angle, (int, float)):
+            self.calculation['IncAngle'] = np.array([0, 0, 0, 1, angle])
+        else:
+            self.calculation['IncAngle'] = np.hstack((np.array(angle), [0, 0]))
+        
+        if isinstance(energy, (int, float)):
+            self.calculation['PhEnergy'] = np.array([0, 0, 0, 1, energy])
+        else:
+            self.calculation['PhEnergy'] = np.hstack((np.array(energy), [0, 0]))
+        
     def set_substrate(self, substrate_data = empty_layer):
         self.substrate = copy.deepcopy(self.empty_layer)
         
@@ -151,12 +166,12 @@ class MultilayerSample(object):
                 L = L.append(self.empty_layer, ignore_index=True)
 
         yxrofile  = ''
-        yxrofile += '{}\t{}\t{}\t{}\t{}\t{}\n'.format(*C['IncAngle'], C['CalcOrder'][0])
-        yxrofile += '{}\t{}\t{}\t{}\t{}\t{}\n'.format(*C['PhEnergy'], C['CalcOrder'][1])
-        yxrofile += '{}\t{}\t{}\t{}\t{}\t{}\n'.format(*C['TakeOff'],  C['CalcOrder'][2])
+        yxrofile += '{}\t{}\t{}\t{}\t{}\t{}\n'.format(*C['IncAngle'], C['Order'][0])
+        yxrofile += '{}\t{}\t{}\t{}\t{}\t{}\n'.format(*C['PhEnergy'], C['Order'][1])
+        yxrofile += '{}\t{}\t{}\t{}\t{}\t{}\n'.format(*C['TakeOff'],  C['Order'][2])
         yxrofile += '{}\t{}\n'.format(*C['InBetween'])
-        yxrofile += '{}\t{}\t{}\t{}\t{}\t{}\n'.format(*C['Depth'],    C['CalcOrder'][3])
-        yxrofile += '{}\t{}\t{}\t{}\t{}\t{}\n'.format(*C['Wedge'],    C['CalcOrder'][4])
+        yxrofile += '{}\t{}\t{}\t{}\t{}\t{}\n'.format(*C['Depth'],    C['Order'][3])
+        yxrofile += '{}\t{}\t{}\t{}\t{}\t{}\n'.format(*C['Wedge'],    C['Order'][4])
         yxrofile += '{}\t{}\n'.format(*C['IntMesh'])
 
         tmp = {}
@@ -208,15 +223,15 @@ class MultilayerSample(object):
         data = re.sub(r"\t\n", "\n", data)
         data = np.array(data.split('\n'))
 
-        CalcOrder = np.zeros(5)
+        Order = np.zeros(5)
 
-        IncAngle_start,  IncAngle_step, IncAngle_end, IncAngle_fixed, IncAngle_val, CalcOrder[0] = data[0].split('\t')
-        PhEnergy_start,  PhEnergy_step, PhEnergy_end, PhEnergy_fixed, PhEnergy_val, CalcOrder[1] = data[1].split('\t')
-        TakeOff_start,   TakeOff_step,  TakeOff_end,  TakeOff_fixed,  TakeOff_val,  CalcOrder[2] = data[2].split('\t')
-        InBetween_fixed, InBetween_val                                                           = data[3].split('\t')
-        Depth_start,     Depth_step,    Depth_end,    Depth_fixed,    Depth_val,    CalcOrder[3] = data[4].split('\t')
-        Wedge_start,     Wedge_step,    Wedge_end,    Wedge_fixed,    Wedge_val,    CalcOrder[4] = data[5].split('\t')
-        IntMesh_checked, IntMesh_val                                                             = data[6].split('\t')
+        IncAngle_start,  IncAngle_step, IncAngle_end, IncAngle_fixed, IncAngle_val, Order[0] = data[0].split('\t')
+        PhEnergy_start,  PhEnergy_step, PhEnergy_end, PhEnergy_fixed, PhEnergy_val, Order[1] = data[1].split('\t')
+        TakeOff_start,   TakeOff_step,  TakeOff_end,  TakeOff_fixed,  TakeOff_val,  Order[2] = data[2].split('\t')
+        InBetween_fixed, InBetween_val                                                       = data[3].split('\t')
+        Depth_start,     Depth_step,    Depth_end,    Depth_fixed,    Depth_val,    Order[3] = data[4].split('\t')
+        Wedge_start,     Wedge_step,    Wedge_end,    Wedge_fixed,    Wedge_val,    Order[4] = data[5].split('\t')
+        IntMesh_checked, IntMesh_val                                                         = data[6].split('\t')
         L_Name           = np.array(data[ 7].split('\t'))
         L_OPC            = np.array(data[ 8].split('\t'))
         L_RepVal         = np.array(data[ 9].split('\t'))
@@ -343,7 +358,7 @@ class MultilayerSample(object):
         self.calculation: {
             'Mode'        : int(Mode),
             'Polarization': int(Polar),
-            'CalcOrder'   : np.array([int(a) for a in CalcOrder]),
+            'Order'       : np.array([int(a) for a in Order]),
             'ACSDir'      : ACS_Dir,
             'OPCDir'      : OPC_Dir,
             'SpotSizeArea': int(SpotSizeArea),
