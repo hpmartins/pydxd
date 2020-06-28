@@ -16,9 +16,6 @@ import lmfit
 
 class Sample(object):
     def __init__(self, filename='', hkl=[1, 1, 1], nuc=1, structure=None):
-        # Number of unit cells to consider. This is only useful when using the calc_yield() function
-        self.number_of_ucs = nuc
-        
         # Load crystal structure and gets the symmetrized structure
         if structure:
             self.structure = structure
@@ -27,9 +24,6 @@ class Sample(object):
 
         # Gets symmetrized structure: equivalent sites are separated
         self.symstruct = SpacegroupAnalyzer(self.structure).get_symmetrized_structure()
-
-        # Debye-Waller factor
-        self.DWF = 1.0
         
         # Calculates interplanar distance
         self.hkl = np.array(hkl)
@@ -38,6 +32,7 @@ class Sample(object):
         self.hkl_norm = self.hkl/np.sqrt(np.dot(self.hkl, self.hkl))
         self.z_dist = np.dot(self.hkl_norm, self.structure.lattice.abc)
     
+        # Vector perpendicular to the (hkl) direction
         tmpa = np.random.randn(3)
         tmpa -= tmpa.dot(self.hkl_norm) * self.hkl_norm
         tmpa /= np.linalg.norm(tmpa)
@@ -47,9 +42,7 @@ class Sample(object):
         # Sets sites
         self.sites = {}
         self.zpos = {}
-        self.geom_factor = {}
         self.cohpos = {}
-        self.cohfra = {}
         for idx, site in enumerate(self.structure.sites):
             self.sites[idx] = site.specie.name + str(idx)
             self.zpos[idx] = np.dot(self.hkl_norm, site.coords)
@@ -97,6 +90,7 @@ class Sample(object):
                 self.energy_Bragg = self.wavelength_energy_relation(self.lambda_Bragg)
 
         self.theta_Bragg_rad = np.radians(self.theta_Bragg)
+        self.set_structure_factor(self.energy_Bragg)
     
     def imfp(self, Ek=0):
         density = self.symstruct.density
@@ -119,7 +113,7 @@ class Sample(object):
         
         return imfp
         
-    def calc_structure_factor(self, energy):
+    def set_structure_factor(self, energy):
         F_0  = 0
         F_H  = 0
         F_Hb = 0
@@ -127,36 +121,37 @@ class Sample(object):
         for idx, site in enumerate(self.structure.sites):
             ptab = pt.elements[site.specie.number]
             
-            f0 = ptab.xray.f0(4*np.pi/(2*self.d_hkl))
+            f0 = ptab.xray.f0(4*np.pi*self.stol)
             f1, f2 = ptab.xray.scattering_factors(energy=energy/1000)
             prefac = (f0 - site.specie.number + f1 + 1j*f2)
             
             F_0  += (f1 + 1j*f2)
-            F_H  += prefac*self.DWF*np.exp( 2j*np.pi*self.hkl.dot(self.structure.lattice.abc))
-            F_Hb += prefac*self.DWF*np.exp(-2j*np.pi*self.hkl.dot(self.structure.lattice.abc))
+            F_H  += prefac*np.exp( 2j*np.pi*self.hkl.dot(self.structure.lattice.abc))
+            F_Hb += prefac*np.exp(-2j*np.pi*self.hkl.dot(self.structure.lattice.abc))
 
-        return F_0, F_H, F_Hb
-
-
-    def calc_reflectivity(self, delta=20, npts=1001, Mono=False, gwidth=False, F_0 = None, F_H = None, F_Hb = None):
-        if F_0 == None or F_H == None or F_Hb == None:
-            F_0, F_H, F_Hb = self.calc_structure_factor(self.energy_Bragg)
-            
+        self.F_0 = F_0
+        self.F_H = F_H
+        self.F_Hb = F_Hb
+        
         r0 = 2.8179403262e-15
         gamma = 1e10*(r0*self.wavelength_energy_relation(self.energy_Bragg)**2)/(np.pi*self.volume())
-        
-        print(self.structure.formula)
-        print(F_0)
-        print(F_H)
-        print(F_Hb)
-        Chi_0  = gamma*F_0
-        Chi_H  = gamma*F_H
-        Chi_Hb = gamma*F_Hb
-        
+        self.Chi_0  = gamma*self.F_0
+        self.Chi_H  = gamma*self.F_H
+        self.Chi_Hb = gamma*self.F_Hb
+
+    def calc_reflectivity(self, delta=20, npts=1001, Mono=False, gwidth=False):
+        if self.F_0 == None or self.F_H == None or self.F_Hb == None:
+            self.set_structure_factor(self.energy_Bragg)
+
         if self.polarization == 'pi':
             P = 2*np.cos(np.radians(self.theta_Bragg))
         else:
             P = 1.0
+            
+        Chi_0 = self.Chi_0
+        Chi_H = self.Chi_H
+        Chi_Hb = self.Chi_Hb
+        
             
         b = -1
         
