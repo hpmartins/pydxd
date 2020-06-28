@@ -1,3 +1,1 @@
-# Python YXRO
-
-Python 3.5
+# Python X-Ray Optics
