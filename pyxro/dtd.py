@@ -15,11 +15,6 @@ from pymatgen import Structure
 import lmfit
 
 class Sample(object):
-    def gaussian(sigma, x):
-        g = lmfit.lineshapes.gaussian()
-        g = scipy_norm.pdf(array, 0, sigma)
-        return g/sum(g)
-
     def __init__(self, filename='', hkl=[1, 1, 1], nuc=1, structure=None):
         # Number of unit cells to consider. This is only useful when using the calc_yield() function
         self.number_of_ucs = nuc
@@ -124,17 +119,11 @@ class Sample(object):
         
         return imfp
         
-    def calc_susceptibility(self, energy):
+    def calc_structure_factor(self, energy):
         F_0  = 0
         F_H  = 0
         F_Hb = 0
 
-        r0 = 2.8179403262e-15
-        gamma = 1e10*(r0*self.wavelength_energy_relation(energy)**2)/(np.pi*self.volume())
-    
-        # Debye-Waller correction to F_H and FH_Hb: exp(-Bs²), with B = 8*pi*<u**2>, s = sin(th)/lambda = 1/(2*d_hkl)
-        # DW_correction = self.DWF/(2*self.d_hkl)**2
-        
         for idx, site in enumerate(self.structure.sites):
             ptab = pt.elements[site.specie.number]
             
@@ -143,14 +132,26 @@ class Sample(object):
             prefac = (f0 - site.specie.number + f1 + 1j*f2)
             
             F_0  += (f1 + 1j*f2)
-            F_H  += prefac*self.DWF*np.exp(2j*np.pi*self.cohpos[idx])
-            F_Hb += prefac*self.DWF*np.exp(2j*np.pi*self.cohpos[idx])
+            F_H  += prefac*self.DWF*np.exp( 2j*np.pi*self.hkl.dot(self.structure.lattice.abc))
+            F_Hb += prefac*self.DWF*np.exp(-2j*np.pi*self.hkl.dot(self.structure.lattice.abc))
+
+        return F_0, F_H, F_Hb
+
+
+    def calc_reflectivity(self, delta=20, npts=1001, Mono=False, gwidth=False, F_0 = None, F_H = None, F_Hb = None):
+        if F_0 == None or F_H == None or F_Hb == None:
+            F_0, F_H, F_Hb = self.calc_structure_factor(self.energy_Bragg)
+            
+        r0 = 2.8179403262e-15
+        gamma = 1e10*(r0*self.wavelength_energy_relation(self.energy_Bragg)**2)/(np.pi*self.volume())
         
-        return gamma*F_0, gamma*F_H, gamma*F_Hb
-
-
-    def calc_reflectivity(self, delta=20, npts=1001, Mono=False, gwidth=False):
-        Chi_0, Chi_H, Chi_Hb = self.calc_susceptibility(self.energy_Bragg)
+        print(self.structure.formula)
+        print(F_0)
+        print(F_H)
+        print(F_Hb)
+        Chi_0  = gamma*F_0
+        Chi_H  = gamma*F_H
+        Chi_Hb = gamma*F_Hb
         
         if self.polarization == 'pi':
             P = 2*np.cos(np.radians(self.theta_Bragg))
@@ -161,10 +162,10 @@ class Sample(object):
         
         self.backscattering_angle = np.degrees(np.pi/2 - 2*np.abs(Chi_0))
         
-        self.angle_offset = np.degrees(np.real(Chi_0)/np.sin(2*self.theta_Bragg_rad))
-        self.angle_range  = np.degrees(np.abs(P)*np.sqrt(np.abs(Chi_H*Chi_Hb))/np.sin(2*self.theta_Bragg_rad))
-        self.energy_offset = np.real(Chi_0)*self.energy_Bragg/(2*np.sin(self.theta_Bragg_rad)**2)
-        self.energy_range  = self.energy_Bragg*np.abs(P)*np.sqrt(np.abs(Chi_H*Chi_Hb))/(2*np.sin(self.theta_Bragg_rad)**2)
+        self.angle_offset   = np.degrees(np.real(Chi_0)/np.sin(2*self.theta_Bragg_rad))
+        self.angle_range    = np.degrees(np.abs(P)*np.sqrt(np.abs(Chi_H*Chi_Hb))/np.sin(2*self.theta_Bragg_rad))
+        self.energy_offset  = np.real(Chi_0)*self.energy_Bragg/(2*np.sin(self.theta_Bragg_rad)**2)
+        self.energy_range   = self.energy_Bragg*np.abs(P)*np.sqrt(np.abs(Chi_H*Chi_Hb))/(2*np.sin(self.theta_Bragg_rad)**2)
         self.extinct_length = (self.lambda_Bragg*np.sin(self.theta_Bragg)/(np.pi*np.sqrt(np.abs(Chi_H*Chi_Hb))))
         
         if self.mode == 'angular':
@@ -177,7 +178,7 @@ class Sample(object):
                 first_term = np.sqrt(1 + 2*xarg**2 * (np.sin(2*targ))**2 + 2*b*xarg*np.sin(2*targ)) - 1
         elif self.mode == 'energy':
             x_range = np.linspace(-delta*self.energy_range, delta*self.energy_range, npts)
-            xarg = x_range/(x_range + self.energy_Bragg)
+            xarg = x_range/self.energy_Bragg
             targ = np.radians(self.theta_Bragg)
             first_term = 2*b*xarg*(np.sin(targ))**2
              
@@ -185,7 +186,7 @@ class Sample(object):
     
         prefactor = np.sqrt(np.abs(b)) * (np.abs(P)/P) * np.sqrt(Chi_H/Chi_Hb)
         EHE0 = -prefactor*np.piecewise(eta, np.real(eta) > 0,
-                 [lambda x: x-(x**2-1)**.5, lambda x: x+(x**2-1)**.5])
+                 [lambda x: x - np.sqrt(x**2 - 1), lambda x: x + np.sqrt(x**2 - 1)])
         
         Refl = np.abs(EHE0)**2
         Phase = np.remainder(np.angle(EHE0) + np.pi/2, 2*np.pi) - np.pi/2
@@ -195,6 +196,7 @@ class Sample(object):
         self.Phase = Phase
         self.Mono = Mono
         
+        # Convolutes with monochromator R
         if self.Mono:
             self.Mono.set_mode(self.mode, energy=self.energy_Bragg)
             self.Mono.calc_reflectivity(delta=delta, npts=npts)
@@ -211,6 +213,12 @@ class Sample(object):
 
             self.Refl_conv_Mono = np.convolve(self.Refl, self.Mono.Squared_Refl, mode='same')
             self.Phase_conv_Mono = np.convolve(self.Phase, self.Mono.Squared_Refl, mode='same')
+        else:
+            if gwidth and gwidth > 0.0:
+                gsmear = lmfit.lineshapes.gaussian(self.x_range, center = self.x_range.mean(), sigma = gwidth)
+                gsmear = gsmear / sum(gsmear)
+                self.Refl = np.convolve(self.Refl, gsmear, mode='same')
+                self.Phase = np.convolve(self.Phase, gsmear, mode='same')
     
     def calc_RC(self, CF, CP, Q = 0.0, Delta = 0.0):
         if self.Mono:
@@ -225,29 +233,8 @@ class Sample(object):
         S_I = ((S_R + 1)/2)*np.sqrt(1 + (np.tan(Psi))**2)
 
         return 1 + S_R*R + 2*np.abs(S_I)*np.sqrt(R)*CF*np.cos(P - 2*np.pi*CP + Psi)
-        
-    def calc_sw_cohpos(self, CF, CP, Q = 0.0, Delta = 0.0):
-        return self.calc_RC(CF, CP, Q, Delta)
     
-    # def calc_yield(self, KE):
-    #     lambda_IMFP = self.imfp() * np.sin(np.radians(self.theta_Bragg))
-
-    #     Y = {}
-    #     for idx, sites in enumerate(self.symstruct.equivalent_sites):
-    #         tmpY = self.calc_sw_cohpos(self.cohfra[idx], self.cohpos[idx])
-    #         Y[idx] = np.zeros((len(tmpY), self.number_of_ucs))
-    #         for uc in np.arange(self.number_of_ucs):
-    #             Y[idx][:, uc] = tmpY * np.exp(-uc*self.z_dist/lambda_IMFP)
-    #         Y[idx] = Y[idx].sum(axis=1)/self.number_of_ucs
-    #     self.Y = Y
-        
-    #     if self.toplayer != None:
-    #         self.toplayer.Y = {}
-    #         uniq_cohpos, uniq_idx = np.unique(list(self.toplayer.cohpos.values()), return_index=True)
-    #         for idx in uniq_idx:
-    #             name = self.toplayer.structure.sites[idx].specie.name + str(idx)
-    #             self.toplayer.Y[name] = self.calc_sw_cohpos(self.toplayer.cohfra[idx], self.toplayer.cohpos[idx])
-
+    
     def Electric_Field(self, z, zmin):
         zpos = z - zmin
         cohpos = np.remainder(zpos / self.d_hkl, 1)
@@ -287,66 +274,3 @@ class Sample(object):
         print('Sample/substrate:')
         for idx, site in self.sites.items():
             print('{:>2}: {:>6.3f} {:>4.2}'.format(site, self.zpos[idx], self.cohpos[idx]))
-        
-
-def plot_Electric_Field(Sample, colors=None, atoms=False, layers=False, shift=0.0):
-    f, axl = plt.subplots(1, 2, sharey=True, figsize=(5,6), gridspec_kw=dict(width_ratios=[3, 1]))
-    
-    ax = axl[0]
-    ax.minorticks_on()
-    ax.tick_params(which='both', axis='y', direction='in', labelleft=True, left=True)
-
-    if Sample.mode == 'energy':
-        ax.set_xlabel(r'Relative photon energy (eV)')
-        ax.set_title('E$_B$ = {:.2f} eV @ {:.2f}$\degree$'.format(Sample.energy_Bragg, Sample.theta_Bragg))
-        offset = Sample.energy_offset
-        trim   = 10*Sample.energy_range
-    elif Sample.mode == 'angular':
-        ax.set_xlabel(r'Relative incident angle ($\degree$)')
-        ax.set_title(r'$\theta_B$ = {:.2f}$\degree$ @ {:.2f} eV'.format(Sample.theta_Bragg, Sample.energy_Bragg))
-        offset = Sample.angle_offset
-        trim   = 10*Sample.angle_range
-
-    # Plots electric field
-    z_range = np.linspace(Sample.d_hkl, -Sample.number_of_ucs*Sample.z_dist, 2001)
-    ElectricField = np.zeros((len(z_range), len(Sample.x_range)))
-    
-    for idx, z in enumerate(z_range):
-        ElectricField[idx, :] = Sample.Electric_Field(z, z_range.min())
-    
-    ttx, tty = np.meshgrid(Sample.x_range, z_range + shift)
-    efplot = ax.pcolormesh(ttx, tty, ElectricField, cmap=cm.seismic)
-    plt.colorbar(efplot)
-    # ax.plot(Sample.x_range, Sample.Refl_conv_Mono, c='k')
-
-    if layers:
-        for i in np.arange(Sample.number_of_ucs*np.int(Sample.z_dist/Sample.d_hkl) + 1):
-            ax.axhline(y = -i*Sample.d_hkl, c='k', lw=1.5, ls='--', zorder=1)    
-        ax.axhline(y=0.0, color='k', lw=2.0, zorder=1)
-    
-    for i, site in enumerate(Sample.structure.sites):
-        for k in np.arange(Sample.number_of_ucs):
-            zpos = -(k+1)*Sample.z_dist + Sample.zpos[i]
-            if colors:
-                clr = colors[site.specie.name]
-            else:
-                clr = 'r'
-                
-            if zpos+shift > 0:
-                zpos -= Sample.z_dist
-                
-            if atoms:
-                axl[0].scatter(offset, zpos + shift, c=clr, edgecolor='w', s=100, zorder=2)
-
-            CP = np.remainder(zpos / Sample.d_hkl, 1)
-            SW = Sample.calc_RC(1.0, CP)
-            axl[1].plot(Sample.x_range, SW - 1 + zpos + shift, c=clr)
-            
-    ax.set_ylabel('Depth ($\AA$)')
-    axl[0].set_xlim(- trim + offset, trim + offset)
-    axl[1].set_xlim(- trim + offset, trim + offset)
-    ax.set_ylim(z_range.min() + shift, z_range.max() + Sample.d_hkl + shift)
-    
-    plt.tight_layout()
-    plt.subplots_adjust(wspace=0.0)
-    plt.show()
