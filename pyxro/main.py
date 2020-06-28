@@ -147,6 +147,36 @@ class MultilayerSample(object):
                 self.opc[v.Formula] = np.column_stack((energy, np.real(ior), np.imag(ior)))
         
         return self.opc
+    
+    def get_expanded_layers(self):
+        newlayers = pd.DataFrame()
+        layern = 0
+        layerl = []
+        for i, layer in self.layers.iterrows():
+            if i in layerl:
+                continue
+                
+            if not layer.RepCheck:
+                newlayers[layern] = layer.copy()
+                layern += 1
+                layerl.append(i)
+            else:
+                multiple_layers = [layer.copy()]
+                layerl.append(i)
+                
+                j = int(i) + 1
+                while j <= self.layers.index.values[-1]:
+                    if self.layers.loc[j, 'RepVal'] == layer.RepVal:
+                        multiple_layers.append(self.layers.loc[j, :])
+                        layerl.append(j)
+                        j += 1
+                
+                for rep in np.arange(layer.RepVal):
+                    for m,mr in enumerate(multiple_layers):
+                        newlayers[newlayers.columns.values[-1] + 1] = mr.copy()
+                        layern += 1
+                        
+        return newlayers.T
 
     def from_json(self, data):
         tmp = json.loads(data)
@@ -170,7 +200,7 @@ class MultilayerSample(object):
         }
         return json.dumps(tmp, cls=ParameterJSONEncoder, indent=4)
 
-    def to_yxrofile(self):
+    def to_yxrofile(self, filename = None):
         C = copy.deepcopy(self.calculation)
         V = copy.deepcopy(self.vacuum)
         S = copy.deepcopy(self.substrate)
@@ -191,16 +221,17 @@ class MultilayerSample(object):
 
         tmp = {}
         for i in L.columns.to_list():
-            if i == 'RepCheck':
-                tmp[i] = '\t'.join([str(a) for a in L[:-1].loc[:, i]])
-            else:
-                tmp[i] = '\t'.join([str(a) for a in L.loc[:, i]])
+            if i != 'Formula':
+                if i == 'RepCheck':
+                    tmp[i] = '\t'.join([str(a) for a in L[:-1].loc[:, i]])
+                else:
+                    tmp[i] = '\t'.join([str(a) for a in L.loc[:, i]])
 
         tmp['Name']      += '\t{}'.format(S['Name'])
         tmp['OPC']       += '\t{}'.format(S['OPC'])
         tmp['Thickness']  = '{}\t{}\t{}'.format(V['Thickness'], tmp['Thickness'], S['Thickness'])
-        tmp['DiffType']   = '{}\t{}'.format(V['DiffType'], tmp['DiffType'])
-        tmp['DiffVal']    = '{}\t{}'.format(V['DiffVal'], tmp['DiffVal'])
+        tmp['DiffType']   = '{}\t{}'.format(tmp['DiffType'], S['DiffType'])
+        tmp['DiffVal']    = '{}\t{}'.format(tmp['DiffVal'], S['DiffVal'])
         tmp['OrbName']   += '\t{}'.format(S['OrbName'])
         tmp['OrbACS']    += '\t{}'.format(S['OrbACS'])
         tmp['BE']        += '\t{}'.format(S['BE'])
@@ -214,8 +245,9 @@ class MultilayerSample(object):
         tmp['Flag']      += '\t{}'.format(S['Flag'])
 
         for i in L.columns.to_list():
-            if not i.startswith('RepDiff'):
-                yxrofile += tmp[i] + '\n'
+            if i != 'Formula':
+                if not i.startswith('RepDiff'):
+                    yxrofile += tmp[i] + '\n'
 
         yxrofile += '{}\t{}\t{}\n'.format(C['Mode'], C['Polarization'], C['WIT'])
         yxrofile += '{}\t{}\t{}\t{}\n'.format(*C['MCD'])
@@ -224,8 +256,12 @@ class MultilayerSample(object):
         yxrofile += '{}\n'.format(C['ACSDir'])
         yxrofile += '{}\n'.format(C['OPCDir'])
         yxrofile += '{}\n'.format(C['SpotSizeArea'])
+        
+        if filename:
+            with open(filename, 'w') as f:
+                f.write(yxrofile)
 
-        return yxrofile
+        return True
 
     def from_yxrofile(self, par_filename):
         with open(par_filename, 'r') as f:
@@ -285,8 +321,8 @@ class MultilayerSample(object):
         L_Name,      S_Name                   = L_Name[:-1],      L_Name[-1]
         L_OPC,       S_OPC                    = L_OPC[:-1],       L_OPC[-1]
         V_Thickness, L_Thickness, S_Thickness = L_Thickness[0],   L_Thickness[1:-1],   L_Thickness[-1]
-        V_DiffType,  L_DiffType               = L_DiffType[0],    L_DiffType[1:]
-        V_DiffVal,   L_DiffVal                = L_DiffVal[0],     L_DiffVal[1:]
+        L_DiffType,  S_DiffType               = L_DiffType[:-1],    L_DiffType[-1]
+        L_DiffVal,   S_DiffVal                = L_DiffVal[:-1],     L_DiffVal[-1]
         L_OrbName,   S_OrbName                = L_OrbName[:-1],   L_OrbName[-1]
         L_OrbACS,    S_OrbACS                 = L_OrbACS[:-1],    L_OrbACS[-1]
         L_BE,        S_BE                     = L_BE[:-1],        L_BE[-1]
@@ -331,6 +367,7 @@ class MultilayerSample(object):
                 print('{}'.format(column_data[i]))
 
         Layers = pd.DataFrame.from_dict(data=column_data)
+        Layers['Formula'] = Layers['Name']
         Layers = Layers[self.column_names]
         Layers.replace([np.inf, -np.inf, 'Inf', 'Infinity'], 0)
         Layers = Layers.astype(self.column_types)
@@ -342,8 +379,6 @@ class MultilayerSample(object):
         # Vacuum
         Vacuum = {
             'Thickness': float(V_Thickness),
-            'DiffType' : int(V_DiffType),
-            'DiffVal'  : float(V_DiffVal)
         }
 
         if np.isinf(Vacuum['Thickness']):
@@ -354,6 +389,8 @@ class MultilayerSample(object):
             'Name'     : S_Name,
             'OPC'      : S_OPC,
             'Thickness': float(S_Thickness),
+            'DiffType' : int(S_DiffType),
+            'DiffVal'  : float(S_DiffVal),
             'OrbName'  : S_OrbName,
             'OrbACS'   : S_OrbACS,
             'BE'       : float(S_BE),
@@ -370,7 +407,7 @@ class MultilayerSample(object):
         if np.isinf(Substrate['Thickness']):
             Substrate['Thickness'] = 100.0;
 
-        self.calculation: {
+        self.calculation = {
             'Mode'        : int(Mode),
             'Polarization': int(Polar),
             'Order'       : np.array([int(a) for a in Order]),
@@ -379,18 +416,16 @@ class MultilayerSample(object):
             'SpotSizeArea': int(SpotSizeArea),
             'WIT'         : int(WIT),
             'MCD'         : np.array([int(a) for a in MCD]),
-            'IncAngle'    : np.array([float(a) for a in IncAngle]),
-            'PhEnergy'    : np.array([float(a) for a in PhEnergy]),
-            'TakeOff'     : np.array([float(a) for a in TakeOff]),
-            'Depth'       : np.array([float(a) for a in Depth]),
-            'Wedge'       : np.array([float(a) for a in Wedge]),
-            'InBetween'   : np.array([float(a) for a in InBetween]),
-            'IntMesh'     : np.array([float(a) for a in IntMesh]),
+            'IncAngle'    : [np.float(a) for a in IncAngle],
+            'PhEnergy'    : np.array([np.float(a) for a in PhEnergy]),
+            'TakeOff'     : np.array([np.float(a) for a in TakeOff]),
+            'Depth'       : np.array([np.float(a) for a in Depth]),
+            'Wedge'       : np.array([np.float(a) for a in Wedge]),
+            'InBetween'   : np.array([np.float(a) for a in InBetween]),
+            'IntMesh'     : np.array([np.float(a) for a in IntMesh]),
         }
         
         self.vacuum = Vacuum
         self.layers = Layers
         self.substrate = Substrate
         self.optimizer = {}
-
-        return True
