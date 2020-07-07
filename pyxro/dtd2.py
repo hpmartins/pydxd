@@ -123,13 +123,13 @@ class Sample(object):
             self.x_range = np.linspace(-delta*self.info.angle_range, delta*self.info.angle_range, npts) # (t - tB)
             x_arg = np.radians(self.x_range)    # (t - tB)
             t_arg = 2*self.Bragg.theta_rad # 2*tB
-            a  = - x_arg*np.sin(2*t_arg) + self.Chi_0
+            a     = -x_arg*np.sin(2*t_arg) + self.Chi_0
         elif self.mode == 'energy':
             # a = -2(E/EB - 1)sin²(tB) - Chi_0
             self.x_range = np.linspace(-delta*self.info.energy_range, delta*self.info.energy_range, npts) # deltaE
             x_arg = self.x_range / self.Bragg.energy # deltaE/E_B
             t_arg = self.Bragg.theta_rad # tB
-            a = -2*x_arg*(np.sin(t_arg))**2 + self.Chi_0 # -2(deltaE/E_B)sin²(tB) 
+            a     = -2*x_arg*(np.sin(t_arg))**2 + self.Chi_0 # -2(deltaE/E_B)sin²(tB) 
          
         eta = a / np.sqrt(self.Chi_H*self.Chi_Hb)
         
