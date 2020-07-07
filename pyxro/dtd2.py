@@ -133,12 +133,10 @@ class Sample(object):
          
         eta = a / np.sqrt(self.Chi_H*self.Chi_Hb)
         
-        self.EHE0_plus  = np.sqrt(self.Chi_H/self.Chi_Hb) * (eta + np.sqrt(eta**2 - 1))
-        self.EHE0_minus = np.sqrt(self.Chi_H/self.Chi_Hb) * (eta - np.sqrt(eta**2 - 1))
         
-        self.EHE0 = self.EHE0_plus.copy()
-        self.EHE0[np.real(self.EHE0_plus) < 0] = self.EHE0_plus[np.real(self.EHE0_plus)  < 0]
-        self.EHE0[np.real(self.EHE0_plus) > 0] = self.EHE0_minus[np.real(self.EHE0_plus) > 0]
+        s = -np.sign(np.real(eta))
+        self.EHE0 = np.sqrt(self.Chi_H/self.Chi_Hb) * (eta + s*np.sqrt(eta**2 - 1))
+        
         self.Refl = np.abs(self.EHE0)**2
         
         self.Phase = np.arctan(np.imag(self.EHE0) / np.real(self.EHE0))
