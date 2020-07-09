@@ -17,8 +17,14 @@ import lmfit
 import pandas as pd
 import xraydb
 
+class AttrDict(dict):
+    def __init__(self, *args, **kwargs):
+        super(AttrDict, self).__init__(*args, **kwargs)
+        self.__dict__ = self
+
 class Sample(object):
-    def __init__(self, filename='', hkl=[1, 1, 1], nuc=1, structure=None):
+    def __init__(self, filename='', hkl=[1, 1, 1], nuc=1, structure=None,
+                 mode = 'angular', angle=0.0, energy=0.0, polarization='sigma', DWF = 0.0):
         # Load crystal structure and gets the symmetrized structure
         if structure:
             self.structure = structure
@@ -55,6 +61,32 @@ class Sample(object):
             geom_factor = np.exp(2j*np.pi*self.H.dot(site.coords))
             
             self.sites.iloc[idx, :] = [name, coords, geom_factor, cohpos]
+            
+            
+        self.mode = mode
+        self.polarization = polarization
+        
+        self.Bragg = AttrDict()
+        if mode == 'angular':
+            if energy == 0.0: # implementar erro
+                energy = 3000
+
+            self.Bragg.energy = energy
+
+            self.Bragg.wavelength = self.wavelength_energy_relation(self.Bragg.energy)
+            self.Bragg.theta  = np.degrees(np.arcsin(self.stol*self.Bragg.wavelength))
+        elif mode == 'energy':
+            if angle == 0.0:
+                self.Bragg.energy = energy
+                self.Bragg.wavelength = self.wavelength_energy_relation(self.Bragg.energy)
+                self.Bragg.theta  = np.degrees(np.arcsin(self.stol*self.Bragg.wavelength))
+            else:
+                self.Bragg.theta = angle
+                self.Bragg.wavelength = 2*self.d_hkl*np.sin(np.radians(self.Bragg.theta))
+                self.Bragg.energy = self.wavelength_energy_relation(self.Bragg.wavelength)
+
+        self.Bragg.theta_rad = np.radians(self.Bragg.theta)
+        self.set_structure_factor(self.Bragg.energy)
 
     def volume(self):
         a = self.structure.lattice.a
@@ -72,31 +104,6 @@ class Sample(object):
         c  = 299792458.0
         return h*c/(t*1e-10)
         
-    def set_mode(self, mode = 'angular', angle=0.0, energy=0.0, polarization='sigma'):
-        self.mode = mode
-        self.polarization = polarization
-        
-        if mode == 'angular':
-            if energy == 0.0:
-                # implementar erro
-                self.energy_Bragg = 3000
-            else:
-                self.energy_Bragg = energy
-
-            self.lambda_Bragg = self.wavelength_energy_relation(self.energy_Bragg)
-            self.theta_Bragg  = np.degrees(np.arcsin(self.stol*self.lambda_Bragg))
-        elif mode == 'energy':
-            if angle == 0.0:
-                self.energy_Bragg = energy
-                self.lambda_Bragg = self.wavelength_energy_relation(self.energy_Bragg)
-                self.theta_Bragg  = np.degrees(np.arcsin(self.stol*self.lambda_Bragg))
-            else:
-                self.theta_Bragg = angle
-                self.lambda_Bragg = 2*self.d_hkl*np.sin(np.radians(self.theta_Bragg))
-                self.energy_Bragg = self.wavelength_energy_relation(self.lambda_Bragg)
-
-        self.theta_Bragg_rad = np.radians(self.theta_Bragg)
-        self.set_structure_factor(self.energy_Bragg)
     
     def imfp(self, Ek=0):
         density = self.symstruct.density
@@ -221,33 +228,41 @@ class Sample(object):
     # eta = a/sqrt(Chi_H*Chi_Hb)
     def calc_reflectivity(self, delta=20, npts=1001, Mono=False, gwidth=False):
         if self.polarization == 'pi':
-            P = 2*np.cos(np.radians(self.theta_Bragg))
+            P = 2*np.cos(np.radians(self.Bragg.theta))
         else:
             P = 1.0
-            
+        
+        self.P = P
+        
         r0 = 2.8179403262e-15
-        gamma = 1e10*(r0*self.wavelength_energy_relation(self.energy_Bragg)**2)/(np.pi*self.volume())
+        gamma = 1e10*(r0*self.wavelength_energy_relation(self.Bragg.energy)**2)/(np.pi*self.volume())
         Chi_0  = gamma*self.F_0
         Chi_H  = gamma*self.F_H
         Chi_Hb = gamma*self.F_Hb
-
-        self.backscattering_angle = np.degrees(np.pi/2 - 2*np.abs(Chi_0))
-        self.angle_offset   = np.degrees(np.real(Chi_0)/np.sin(2*self.theta_Bragg_rad))
-        self.angle_range    = np.degrees(np.abs(P)*np.sqrt(np.abs(Chi_H*Chi_Hb))/np.sin(2*self.theta_Bragg_rad))
-        self.energy_offset  = np.real(Chi_0)*self.energy_Bragg/(2*np.sin(self.theta_Bragg_rad)**2)
-        self.energy_range   = self.energy_Bragg*np.abs(P)*np.sqrt(np.abs(Chi_H*Chi_Hb))/(2*np.sin(self.theta_Bragg_rad)**2)
-        self.extinct_length = (self.lambda_Bragg*np.sin(self.theta_Bragg)/(np.pi*np.sqrt(np.abs(Chi_H*Chi_Hb))))
         
+        self.Chi_0  = Chi_0
+        self.Chi_H  = Chi_H
+        self.Chi_Hb = Chi_Hb
+
+        # Extra info
+        self.info = AttrDict()
+        self.info.backscattering_angle = np.degrees(np.pi/2 - 2*np.abs(self.Chi_0))
+        self.info.angle_offset   = np.degrees(np.real(self.Chi_0)/np.sin(2*self.Bragg.theta_rad))
+        self.info.angle_range    = np.degrees(np.abs(self.P)*np.sqrt(np.abs(self.Chi_H*self.Chi_Hb))/np.sin(2*self.Bragg.theta_rad))
+        self.info.energy_offset  = np.real(self.Chi_0)*self.Bragg.energy/(2*np.sin(self.Bragg.theta_rad)**2)
+        self.info.energy_range   = self.Bragg.energy*np.abs(self.P)*np.sqrt(np.abs(self.Chi_H*self.Chi_Hb))/(2*np.sin(self.Bragg.theta_rad)**2)
+        self.info.extinct_length = (self.Bragg.wavelength*np.sin(self.Bragg.theta_rad)/(np.pi*np.sqrt(np.abs(self.Chi_H*self.Chi_Hb))))
+
         if self.mode == 'angular':
             # a = (tB - t)*sin(2tB) - Chi_0
-            x_range = np.linspace(-delta*self.angle_range, delta*self.angle_range, npts) # t - tB
+            x_range = np.linspace(-delta*self.info.angle_range, delta*self.info.angle_range, npts) # t - tB
             xarg = np.radians(x_range)  # (t - tB)
-            targ = np.radians(self.theta_Bragg) # 2tB
+            targ = np.radians(self.Bragg.theta) # 2tB
             a  = xarg*np.sin(2*targ) - Chi_0
         elif self.mode == 'energy':
-            x_range = np.linspace(-delta*self.energy_range, delta*self.energy_range, npts) # deltaE
-            xarg = x_range/self.energy_Bragg # deltaE/E_B
-            targ = np.radians(self.theta_Bragg) # tB
+            x_range = np.linspace(-delta*self.info.energy_range, delta*self.info.energy_range, npts) # deltaE
+            xarg = x_range/self.Bragg.energy # deltaE/E_B
+            targ = np.radians(self.Bragg.theta) # tB
             a =  2*xarg*(np.sin(targ))**2 - Chi_0 # -2(deltaE/E_B)sin²(tB) 
              
         eta = a / np.sqrt(Chi_H*Chi_Hb)
@@ -287,7 +302,7 @@ class Sample(object):
         
         # Convolutes with monochromator R
         if self.Mono:
-            self.Mono.set_mode(self.mode, energy=self.energy_Bragg)
+            self.Mono.set_mode(self.mode, energy=self.Bragg.energy)
             self.Mono.calc_reflectivity(delta=delta, npts=npts)
             
             shift_mono = (self.Mono.angle_offset if self.mode == 'angular' else self.Mono.energy_offset)
