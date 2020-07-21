@@ -6,6 +6,7 @@ import copy
 import periodictable as pt
 import periodictable.xsf as xsf
 import mendeleev as ml
+from collections import OrderedDict
 
 class ParameterJSONEncoder(json.JSONEncoder):
     def default(self, obj):
