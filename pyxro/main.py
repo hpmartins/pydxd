@@ -266,7 +266,9 @@ class MultilayerSample(object):
     def from_yxrofile(self, par_filename):
         with open(par_filename, 'r') as f:
             origdata = f.read()
-        
+        self.from_yxrodata(origdata)
+    
+    def from_yxrodata(self, origdata):
         self.origdata = origdata
         
         data = re.sub("[\t]{2,}", "\t", origdata)
