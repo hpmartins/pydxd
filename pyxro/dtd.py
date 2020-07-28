@@ -5,7 +5,6 @@ Created on Fri Nov  8 14:01:41 2019
 @author: Henrique
 """
 
-
 import periodictable as pt
 import mendeleev as ml
 import numpy as np
@@ -121,8 +120,8 @@ class Sample(object):
         C_func = 1.97 - (1.096E-3 * E_p**2)
         D_func = 53.4 - (0.025 * E_p**2)
         
-        imfp = (E_kinetic / ((E_p**2) * ((beta * np.log(gamma * E_kinetic)) 
-               - (C_func / E_kinetic) + (D_func / E_kinetic**2))))
+        imfp = (Ek / ((E_p**2) * ((beta * np.log(gamma * Ek)) 
+               - (C_func / Ek) + (D_func / Ek**2))))
         
         return imfp
     
