@@ -73,24 +73,24 @@ class Crystal(object):
             self.Bragg.energy = energy
 
             self.Bragg.wavelength = self.wavelength_energy_relation(self.Bragg.energy)
-            self.Bragg.theta  = np.degrees(np.arcsin(self.stol*self.Bragg.wavelength))
+            self.Bragg.angle  = np.degrees(np.arcsin(self.stol*self.Bragg.wavelength))
         elif mode == 'energy':
             if angle == 0.0:
                 self.Bragg.energy = energy
                 self.Bragg.wavelength = self.wavelength_energy_relation(self.Bragg.energy)
-                self.Bragg.theta  = np.degrees(np.arcsin(self.stol*self.Bragg.wavelength))
+                self.Bragg.angle  = np.degrees(np.arcsin(self.stol*self.Bragg.wavelength))
             else:
-                self.Bragg.theta = angle
-                self.Bragg.wavelength = 2*self.d_hkl*np.sin(np.radians(self.Bragg.theta))
+                self.Bragg.angle = angle
+                self.Bragg.wavelength = 2*self.d_hkl*np.sin(np.radians(self.Bragg.angle))
                 self.Bragg.energy = self.wavelength_energy_relation(self.Bragg.wavelength)
 
-        self.Bragg.theta_rad = np.radians(self.Bragg.theta)
+        self.Bragg.angle_rad = np.radians(self.Bragg.angle)
         # self.set_structure_factor(self.Bragg.energy)
 
         # these relations are correct        
         self.polarization = polarization 
         if self.polarization == 'pi':
-            self.P = np.cos(2*self.Bragg.theta_rad)
+            self.P = np.cos(2*self.Bragg.angle_rad)
         elif self.polarization == 'sigma':
             self.P = 1.0
 
@@ -232,24 +232,24 @@ class Crystal(object):
         # Extra info
         self.info = AttrDict()
         self.info.backscattering_angle = np.degrees(np.pi/2 - 2*np.abs(self.Chi_0))
-        self.info.angle_range    = np.degrees(np.abs(self.P)*np.sqrt(np.abs(self.Chi_H*self.Chi_Hb))/(np.sqrt(np.abs(self.b))*np.sin(2*self.Bragg.theta_rad)))
-        self.info.energy_offset  = np.real(self.Chi_0)*self.Bragg.energy/(2*np.sin(self.Bragg.theta_rad)**2)
-        self.info.energy_range   = self.Bragg.energy*np.abs(self.P)*np.sqrt(np.abs(self.Chi_H*self.Chi_Hb))/(2*np.sin(self.Bragg.theta_rad)**2)
-        self.info.extinct_length = (self.Bragg.wavelength*np.sin(self.Bragg.theta_rad)/(np.pi*np.sqrt(np.abs(self.Chi_H*self.Chi_Hb))))
+        self.info.angle_range    = np.degrees(np.abs(self.P)*np.sqrt(np.abs(self.Chi_H*self.Chi_Hb))/(np.sqrt(np.abs(self.b))*np.sin(2*self.Bragg.angle_rad)))
+        self.info.energy_offset  = np.real(self.Chi_0)*self.Bragg.energy/(2*np.sin(self.Bragg.angle_rad)**2)
+        self.info.energy_range   = self.Bragg.energy*np.abs(self.P)*np.sqrt(np.abs(self.Chi_H*self.Chi_Hb))/(2*np.sin(self.Bragg.angle_rad)**2)
+        self.info.extinct_length = (self.Bragg.wavelength*np.sin(self.Bragg.angle_rad)/(np.pi*np.sqrt(np.abs(self.Chi_H*self.Chi_Hb))))
 
         self.info.angle_width = 2*self.info.angle_range
         self.info.energy_width = 2*self.info.energy_range
         
-        offset = -self.Chi_0*((1 - self.b)/2) / np.sin(2*self.Bragg.theta_rad)
+        offset = -self.Chi_0*((1 - self.b)/2) / np.sin(2*self.Bragg.angle_rad)
         self.info.angle_offset = np.degrees(offset.real)
-        denominator = self.P*np.sqrt(np.abs(self.b)*self.Chi_H*self.Chi_Hb)/np.sin(2*self.Bragg.theta_rad)
+        denominator = self.P*np.sqrt(np.abs(self.b)*self.Chi_H*self.Chi_Hb)/np.sin(2*self.Bragg.angle_rad)
         
         if self.mode == 'angular':
             x_range = np.linspace(-delta*self.info.angle_range, delta*self.info.angle_range, npts) + self.info.angle_offset
             x = np.radians(x_range)
         elif self.mode == 'energy':
             x_range = np.linspace(-delta*self.info.energy_range, delta*self.info.energy_range, npts) # deltaE
-            x = 2*(x_range/self.Bragg.energy)*(np.sin(self.Bragg.theta_rad))**2
+            x = 2*(x_range/self.Bragg.energy)*(np.sin(self.Bragg.angle_rad))**2
             
         self.eta = (x - offset) / denominator
         
@@ -293,7 +293,7 @@ class Crystal(object):
                 self.Refl = np.convolve(self.Refl, gsmear, mode='same')
                 self.Phase = np.convolve(self.Phase, gsmear, mode='same')
     
-        self.data = pd.DataFrame({'Refl': self.Refl, 'Phase': self.Phase}, index = self.x_range)
+        self.data = pd.DataFrame({'x': self.x_range, 'Refl': self.Refl, 'Phase': self.Phase})
         
     def calc_RC(self, CF, CP, Q = 0.0, Delta = 0.0):
         if self.Mono:
