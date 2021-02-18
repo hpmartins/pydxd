@@ -19,18 +19,16 @@ class AttrDict(dict):
         super(AttrDict, self).__init__(*args, **kwargs)
         self.__dict__ = self
 
-class Sample(object):
-    def __init__(self, filename='', hkl=[1, 1, 1], nuc=1, structure=None,
-                 mode = 'angular', angle=0.0, energy=0.0, polarization='sigma', DWF = 0.0):
+class Crystal(object):
+    def __init__(self, filename='', hkl=[1, 1, 1], nuc=1, structure=None):
         # Load crystal structure and gets the symmetrized structure
         if structure:
             self.structure = structure
         else:
             self.structure = Structure.from_file(filename)
-            
-        # self.structure = self.structure.get_primitive_structure()
-        self.sym_structure = SpacegroupAnalyzer(self.structure).get_symmetrized_structure()
         
+        # self.structure = self.structure.get_primitive_structure()
+        # self.sym_structure = SpacegroupAnalyzer(self.structure).get_symmetrized_structure()
         
         # Calculates interplanar distance
         self.hkl = np.array(hkl)
@@ -41,10 +39,6 @@ class Sample(object):
         #
         self.hkl_norm = self.hkl/np.sqrt(np.dot(self.hkl, self.hkl))
         self.z_dist = self.hkl_norm.dot(self.structure.lattice.abc)
-        
-        self.pshift = 0
-        
-        self.DWF = DWF
     
         # Vector perpendicular to the (hkl) direction
         tmpa = np.random.randn(3)
@@ -65,9 +59,12 @@ class Sample(object):
         
         self.sites = self.sites.sort_values(by = 'zcoord', ignore_index = True, ascending = True)
 
-        self.b = -1.0
+        
+    def set_mode(self, mode = 'angular', angle=0.0, energy=0.0, polarization='sigma', DWF = 0.0):
         self.mode = mode
-
+        self.DWF = DWF
+        self.b = -1.0
+        
         self.Bragg = AttrDict()
         if mode == 'angular':
             if energy == 0.0: # implementar erro
@@ -88,9 +85,8 @@ class Sample(object):
                 self.Bragg.energy = self.wavelength_energy_relation(self.Bragg.wavelength)
 
         self.Bragg.theta_rad = np.radians(self.Bragg.theta)
-        self.set_structure_factor(self.Bragg.energy)
-        
-        
+        # self.set_structure_factor(self.Bragg.energy)
+
         # these relations are correct        
         self.polarization = polarization 
         if self.polarization == 'pi':
