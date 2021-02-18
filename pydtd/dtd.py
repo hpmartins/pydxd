@@ -8,10 +8,8 @@ Created on Fri Nov  8 14:01:41 2019
 import periodictable as pt
 import mendeleev as ml
 import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib import cm
-from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
 from pymatgen import Structure
+from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
 import lmfit
 import pandas as pd
 import xraydb
@@ -31,7 +29,7 @@ class Sample(object):
             self.structure = Structure.from_file(filename)
             
         # self.structure = self.structure.get_primitive_structure()
-        # self.structure = SpacegroupAnalyzer(self.structure).get_symmetrized_structure()
+        self.sym_structure = SpacegroupAnalyzer(self.structure).get_symmetrized_structure()
         
         
         # Calculates interplanar distance
@@ -43,6 +41,10 @@ class Sample(object):
         #
         self.hkl_norm = self.hkl/np.sqrt(np.dot(self.hkl, self.hkl))
         self.z_dist = self.hkl_norm.dot(self.structure.lattice.abc)
+        
+        self.pshift = 0
+        
+        self.DWF = DWF
     
         # Vector perpendicular to the (hkl) direction
         tmpa = np.random.randn(3)
@@ -52,19 +54,20 @@ class Sample(object):
         self.hkl_perp = (tmpa + tmpb)/np.linalg.norm(tmpa + tmpb)
     
         # Sets sites
-        self.sites = pd.DataFrame(index = range(len(self.structure.sites)), columns = ['name', 'coords', 'geom_factor', 'cohpos'])
-        for idx, site in enumerate(self.structure.sites):
-            name = site.specie.name + str(idx)
-            coords = self.H.dot(site.coords)
-            cohpos = np.remainder(self.H.dot(site.coords), 1)
-            geom_factor = np.exp(2j*np.pi*self.H.dot(site.coords))
-            
-            self.sites.iloc[idx, :] = [name, coords, geom_factor, cohpos]
-            
-            
-        self.mode = mode
-        self.polarization = polarization
+        self.sites = pd.DataFrame([{
+            'Z': site.specie.number,
+            'name': site.specie.name,
+            'label': '{}{}'.format(site.specie.name, idx),
+            'zcoord': self.hkl_norm.dot(site.coords),
+            'Hdotr': self.H.dot(site.coords),
+            'cohpos': np.remainder(self.H.dot(site.coords), 1),
+        } for idx, site in enumerate(self.structure.sites)])
         
+        self.sites = self.sites.sort_values(by = 'zcoord', ignore_index = True, ascending = True)
+
+        self.b = -1.0
+        self.mode = mode
+
         self.Bragg = AttrDict()
         if mode == 'angular':
             if energy == 0.0: # implementar erro
@@ -86,6 +89,14 @@ class Sample(object):
 
         self.Bragg.theta_rad = np.radians(self.Bragg.theta)
         self.set_structure_factor(self.Bragg.energy)
+        
+        
+        # these relations are correct        
+        self.polarization = polarization 
+        if self.polarization == 'pi':
+            self.P = np.cos(2*self.Bragg.theta_rad)
+        elif self.polarization == 'sigma':
+            self.P = 1.0
 
     def volume(self):
         a = self.structure.lattice.a
@@ -105,14 +116,16 @@ class Sample(object):
         
     
     def imfp(self, Ek=0):
-        density = self.symstruct.density
-        formula = pt.formula(self.symstruct.formula)
+        formula = pt.formula(self.structure.formula)
+        density = formula.molecular_mass / (1e-24*self.volume())
+        
         M_weight = formula.mass
         E_g = 0.0
         v = []
         for i,k in formula.atoms.items():
             v.append(k*ml.element(str(i)).nvalence())
         N_V = np.sum(v)
+        
         E_p = 28.8 * np.sqrt((N_V * density) / M_weight)  
         beta = (-0.10 + (0.944 / (np.sqrt(E_p**2 + E_g**2))) + 
                (0.069 * (density**0.1))) 
@@ -167,38 +180,23 @@ class Sample(object):
     # 1. transform everything into dataframes. Ongoing.
     # 2. Add Debye-Waller factor
     def set_structure_factor(self, energy):
-        F_0  = 0
-        F_H  = 0
-        F_Hb = 0
-
-        self.SF = pd.DataFrame(index = range(len(self.structure.sites)), columns=[(0,0,0), tuple(self.hkl), tuple(-self.hkl)])
-        self.scattering_factor = pd.DataFrame(index = range(len(self.structure.sites)), columns=['f0', 'f1', 'f2'])
-        self.test = pd.DataFrame(index = range(len(self.structure.sites)), columns=['name', 'coords', 'frac_coords', 'gf', 'cp'])
-        for idx, site in enumerate(self.structure.sites):
-            f0 = xraydb.f0(site.specie.number, [0, self.stol])
-            f1 = xraydb.f1_chantler(site.specie.number, energy)
-            f2 = xraydb.f2_chantler(site.specie.number, energy)
-            
-            self.scattering_factor.iloc[idx, :] = [f0, f1, f2]
-            
-            F_0  += (f0[0] + f1 + 1j*f2)
-            F_H  += (f0[1] + f1 + 1j*f2)*np.exp( 2j*np.pi*self.H.dot(site.coords))
-            F_Hb += (f0[1] + f1 + 1j*f2)*np.exp(-2j*np.pi*self.H.dot(site.coords))
-            
-            gf = np.exp( 2j*np.pi*self.H.dot(site.coords))
-            cp = np.remainder(self.H.dot(site.coords), 1)
-            self.test.iloc[idx, :] = [site.species.formula, site.coords, site.frac_coords, gf, cp]
-
-        self.F_0  = F_0
-        self.F_H  = F_H
-        self.F_Hb = F_Hb
+        self.xray_scattering_factors = pd.DataFrame([{
+            'f0_0': xraydb.f0(site.Z, 0)[0],
+            'f0_Q': xraydb.f0(site.Z, self.stol)[0],
+            'f1': xraydb.f1_chantler(site.Z, energy),
+            'f2': xraydb.f2_chantler(site.Z, energy),
+        } for idx, site in self.sites.iterrows()])
         
-        for idx, row in self.scattering_factor.iterrows():
-            tmp0 = row['f0'][0] + row['f1'] + 1j*row['f2']
-            tmpH = row['f0'][1] + row['f1'] + 1j*row['f2']
-            Hdr = self.H.dot(self.structure.sites[idx].coords)
-            self.SF.iloc[idx, :] = [tmp0, tmpH*np.exp(2j*np.pi*Hdr), tmpH*np.exp(-2j*np.pi*Hdr)]
-
+        self.xray_structure_factors = pd.DataFrame([{
+            'F_0':   xsf.f0_0 + xsf.f1 + 1j*xsf.f2,
+            'F_H':  (xsf.f0_Q + xsf.f1 + 1j*xsf.f2)*np.exp(-self.DWF)*np.exp(-2j*np.pi*self.sites.loc[idx, 'Hdotr']),
+            'F_Hb': (xsf.f0_Q + xsf.f1 + 1j*xsf.f2)*np.exp(-self.DWF)*np.exp(+2j*np.pi*self.sites.loc[idx, 'Hdotr']),
+        } for idx, xsf in self.xray_scattering_factors.iterrows()])
+        
+        self.F_0  = self.xray_structure_factors['F_0'].sum()
+        self.F_H  = self.xray_structure_factors['F_H'].sum()
+        self.F_Hb = self.xray_structure_factors['F_Hb'].sum()
+        
 
     # Based on:
     # 1. J. Zegenhagen, Surface structure determination with X-ray standing waves. Surf. Sci. Rep. 18, 202–271 (1993).
@@ -214,98 +212,74 @@ class Sample(object):
     # The important quantity here is E_H/E_0.
     #
     # E_H/E_0 = sqrt(Chi_H/Chi_Hb) [eta +- sqrt(eta² - 1)]
-    # E_H/E_0 = -sqrt(F_H/F_Hb) [eta +- sqrt(eta² - 1)]
     #
-    # Chi_0 and Chi_H are the 0th- and Hth-order Fourier components of the complex,
-    # lattice periodic susceptibility Chi(r). These Fourier components are related
-    # to the structure factor by a prefactor Gamma = (r_0*lambda²)/(pi*V), where r_0
-    # is the classical electron radius, lambda is the wavelength and V is the unit cell
-    # volume. The same unit cell used to calculate the structure factor.
+    # Chi_0 and Chi_H are the 0th- and Hth-order Fourier components of the complex
+    # lattice periodic susceptibility Chi(r), which can be written in terms of the
+    # also complex structure factor for a reflection characterized by H:
+    #
+    # Chi_H = -Γ*F_H,
+    # 
+    # where Γ = (r_0*lambda²)/(pi*V),  r_0 is the classical electron radius, 
+    # lambda is the wavelength and V is the unit cell volume. The same unit 
+    # cell used to calculate the structure factor.
     #
     # Finally, the complex variable eta is:
     #
     # eta = a/sqrt(Chi_H*Chi_Hb)
     def calc_reflectivity(self, delta=20, npts=1001, Mono=False, gwidth=False):
-        if self.polarization == 'pi':
-            P = 2*np.cos(np.radians(self.Bragg.theta))
-        else:
-            P = 1.0
-        
-        self.P = P
-        
         r0 = 2.8179403262e-15
         gamma = 1e10*(r0*self.wavelength_energy_relation(self.Bragg.energy)**2)/(np.pi*self.volume())
-        Chi_0  = gamma*self.F_0
-        Chi_H  = gamma*self.F_H
-        Chi_Hb = gamma*self.F_Hb
-        
-        self.Chi_0  = Chi_0
-        self.Chi_H  = Chi_H
-        self.Chi_Hb = Chi_Hb
-
+        self.Chi_0  = -gamma*self.F_0
+        self.Chi_H  = -gamma*self.F_H
+        self.Chi_Hb = -gamma*self.F_Hb
+    
         # Extra info
         self.info = AttrDict()
         self.info.backscattering_angle = np.degrees(np.pi/2 - 2*np.abs(self.Chi_0))
-        self.info.angle_offset   = np.degrees(np.real(self.Chi_0)/np.sin(2*self.Bragg.theta_rad))
-        self.info.angle_range    = np.degrees(np.abs(self.P)*np.sqrt(np.abs(self.Chi_H*self.Chi_Hb))/np.sin(2*self.Bragg.theta_rad))
+        self.info.angle_range    = np.degrees(np.abs(self.P)*np.sqrt(np.abs(self.Chi_H*self.Chi_Hb))/(np.sqrt(np.abs(self.b))*np.sin(2*self.Bragg.theta_rad)))
         self.info.energy_offset  = np.real(self.Chi_0)*self.Bragg.energy/(2*np.sin(self.Bragg.theta_rad)**2)
         self.info.energy_range   = self.Bragg.energy*np.abs(self.P)*np.sqrt(np.abs(self.Chi_H*self.Chi_Hb))/(2*np.sin(self.Bragg.theta_rad)**2)
         self.info.extinct_length = (self.Bragg.wavelength*np.sin(self.Bragg.theta_rad)/(np.pi*np.sqrt(np.abs(self.Chi_H*self.Chi_Hb))))
 
+        self.info.angle_width = 2*self.info.angle_range
+        self.info.energy_width = 2*self.info.energy_range
+        
+        offset = -self.Chi_0*((1 - self.b)/2) / np.sin(2*self.Bragg.theta_rad)
+        self.info.angle_offset = np.degrees(offset.real)
+        denominator = self.P*np.sqrt(np.abs(self.b)*self.Chi_H*self.Chi_Hb)/np.sin(2*self.Bragg.theta_rad)
+        
         if self.mode == 'angular':
-            # a = (tB - t)*sin(2tB) - Chi_0
-            x_range = np.linspace(-delta*self.info.angle_range, delta*self.info.angle_range, npts) # t - tB
-            xarg = np.radians(x_range)  # (t - tB)
-            targ = np.radians(self.Bragg.theta) # 2tB
-            a  = xarg*np.sin(2*targ) - Chi_0
+            x_range = np.linspace(-delta*self.info.angle_range, delta*self.info.angle_range, npts) + self.info.angle_offset
+            x = np.radians(x_range)
         elif self.mode == 'energy':
             x_range = np.linspace(-delta*self.info.energy_range, delta*self.info.energy_range, npts) # deltaE
-            xarg = x_range/self.Bragg.energy # deltaE/E_B
-            targ = np.radians(self.Bragg.theta) # tB
-            a =  2*xarg*(np.sin(targ))**2 - Chi_0 # -2(deltaE/E_B)sin²(tB) 
-             
-        eta = a / np.sqrt(Chi_H*Chi_Hb)
+            x = 2*(x_range/self.Bragg.energy)*(np.sin(self.Bragg.theta_rad))**2
             
-        EHE0 = np.sqrt(Chi_H/Chi_Hb)*np.piecewise(eta, np.real(eta) > 0,
-                 [lambda x: x - np.sqrt(x**2 - 1), lambda x: x + np.sqrt(x**2 - 1)])
+        self.eta = (x - offset) / denominator
         
-        Refl = np.abs(EHE0)**2
-        Phase = np.remainder(np.angle(EHE0) + np.pi/2, 2*np.pi) - np.pi/2
+        prefactor = np.sign(self.P)*(np.sign(self.b)/np.sqrt(np.abs(self.b)))*(np.sqrt(self.Chi_H*self.Chi_Hb)/self.Chi_Hb)
 
+        self.EH_E0 = prefactor*np.piecewise(self.eta, self.eta.real <= 0, 
+                                [
+                                    lambda x: x + np.sqrt(x**2 + np.sign(self.b)), 
+                                    lambda x: x - np.sqrt(x**2 + np.sign(self.b))
+                                ])
+        
         self.x_range = x_range
-        self.Refl = Refl
-        self.Phase = Phase
+        self.Refl = np.abs(self.EH_E0)**2
+        self.Phase = np.angle(self.EH_E0)
+        
+        shift_mask = (self.Phase > (np.pi + np.angle(self.F_H))) | (self.Phase < np.angle(self.F_H))
+        self.Phase[shift_mask] = np.remainder(self.Phase[shift_mask] + np.angle(self.F_H), 2*np.pi) - np.angle(self.F_H)
+        
         self.Mono = Mono
+        self.Refl_conv_Mono = None
+        self.Phase_conv_Mono = None
         
-        # EH_E0_pos = np.sqrt(Chi_H/Chi_Hb)*(eta + np.sqrt(eta**2 - 1))
-        # EH_E0_neg = np.sqrt(Chi_H/Chi_Hb)*(eta - np.sqrt(eta**2 - 1))
-        
-        # Refl_pos = np.abs(EH_E0_pos)**2
-        # Refl_neg = np.abs(EH_E0_neg)**2
-        
-        # phi_pos = np.arctan(np.imag(EH_E0_pos) / np.real(EH_E0_pos))
-        # phi_neg = np.arctan(np.imag(EH_E0_neg) / np.real(EH_E0_neg))
-        
-        # Refl = np.zeros_like(Refl_pos)
-        # Phase = np.zeros_like(Refl_pos)
-        
-        # Refl[ (Refl_pos > 0) & (Refl_pos < 1)] = Refl_pos[(Refl_pos > 0) & (Refl_pos < 1)]
-        # Refl[ (Refl_neg > 0) & (Refl_neg < 1)] = Refl_neg[(Refl_neg > 0) & (Refl_neg < 1)]
-        # Phase[(Refl_pos > 0) & (Refl_pos < 1)] = phi_pos[ (Refl_pos > 0) & (Refl_pos < 1)]
-        # Phase[(Refl_neg > 0) & (Refl_neg < 1)] = phi_neg[ (Refl_neg > 0) & (Refl_neg < 1)]
-        
-        # if self.polarization == 'sigma':
-        #     Phase[np.real(EH_E0_neg) < 0] += np.pi
-        # else:
-        #     Phase[np.real(EH_E0_neg) > 0] += np.pi
-        
-        # Convolutes with monochromator R
+        # # Convolutes with monochromator R
         if self.Mono:
-            self.Mono.set_mode(self.mode, energy=self.Bragg.energy)
             self.Mono.calc_reflectivity(delta=delta, npts=npts)
-            
-            shift_mono = (self.Mono.angle_offset if self.mode == 'angular' else self.Mono.energy_offset)
-            self.Mono.Refl_shifted = np.interp(self.Mono.x_range, self.Mono.x_range - shift_mono, self.Mono.Refl)
+            self.Mono.Refl_shifted = np.interp(self.Mono.x_range, self.Mono.x_range, self.Mono.Refl)
             
             if gwidth and gwidth > 0.0:
                 gsmear = lmfit.lineshapes.gaussian(self.Mono.x_range, center = self.Mono.x_range.mean(), sigma = gwidth)
@@ -323,6 +297,8 @@ class Sample(object):
                 self.Refl = np.convolve(self.Refl, gsmear, mode='same')
                 self.Phase = np.convolve(self.Phase, gsmear, mode='same')
     
+        self.data = pd.DataFrame({'Refl': self.Refl, 'Phase': self.Phase}, index = self.x_range)
+        
     def calc_RC(self, CF, CP, Q = 0.0, Delta = 0.0):
         if self.Mono:
             R = self.Refl_conv_Mono
@@ -337,6 +313,15 @@ class Sample(object):
 
         return 1 + R + 2*np.sqrt(R)*CF*np.cos(P - 2*np.pi*CP)
     
+    def calc_part_RC(self, CF, CP):
+        if self.Mono:
+            R = self.Refl_conv_Mono
+            P = self.Phase_conv_Mono
+        else:
+            R = self.Refl
+            P = self.Phase
+        
+        return 2*self.P*np.sqrt(R)*CF*np.cos(P + 2*np.pi*CP)
     
     def Electric_Field(self, z, zmin):
         zpos = z - zmin

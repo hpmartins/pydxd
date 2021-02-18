@@ -8,12 +8,12 @@ from shutil import rmtree
 from setuptools import find_packages, setup, Command
 
 # Package meta-data.
-NAME = 'pyxro'
+NAME = 'pydtd'
 DESCRIPTION = ''
-URL = 'https://github.com/hpmartins/pyxro'
-EMAIL = 'hpmartins@lbl.gov'
+URL = 'https://github.com/hpmartins/pydtd'
+EMAIL = 'hpmartins@gmail.com'
 AUTHOR = 'H. P. Martins'
-REQUIRES_PYTHON = '>=3.5.0'
+REQUIRES_PYTHON = '>=3.7.0'
 VERSION=False
 REQUIRED = ['numpy', 'pandas', 'requests']
 EXTRAS = {} # Optional packages
