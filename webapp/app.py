@@ -14,10 +14,10 @@ from callbacks import register_callbacks
 
 app = dash.Dash(__name__, external_stylesheets = [dbc.themes.BOOTSTRAP])
 
-app.enable_dev_tools(
-        dev_tools_ui=True,
-        dev_tools_serve_dev_bundles=True,
-)
+# app.enable_dev_tools(
+#         dev_tools_ui=True,
+#         dev_tools_serve_dev_bundles=True,
+# )
 
 df = pd.DataFrame({
     "Fruit": ["Apples", "Oranges", "Bananas", "Apples", "Oranges", "Bananas"],
@@ -44,6 +44,7 @@ select_cif = select = dbc.Select(
     id="cif_select",
     options=[{"label": x, "value": x} for x in CIF_LIST],
     value = 'Cu_mp-30_symmetrized.cif',
+    persistence = True, persistence_type = 'session',
 )
 
 sites_table = dash_table.DataTable(
@@ -107,82 +108,176 @@ sites_table = dash_table.DataTable(
 app.layout = dbc.Container(
     [
         topbar,
-        
+                
         html.Div([
             html.Hr(),
-            dbc.Row([
-                # Inputs
-                dbc.Col([
-                    dbc.Form([
+            dbc.Container(
+                dbc.Row([
+                    # Inputs
+                    dbc.Col([
+                        dbc.Form([
+                            dbc.FormGroup(
+                                [
+                                    dbc.Label("CIF", width=3),
+                                    dbc.Col(select_cif, width=9),
+                                ],
+                                row=True,
+                            ),
+                        ]),
                         dbc.FormGroup(
                             [
-                                dbc.Label("CIF", width=3),
-                                dbc.Col(select_cif, width=9),
+                                dbc.Label("(hkl)", width=3),
+                                dbc.Col([
+                                    dbc.InputGroup([
+                                        dbc.Input(
+                                            type="numeric", 
+                                            id={'type': 'hkl', 'index': 'h'}, 
+                                            placeholder="h", 
+                                            value=1,
+                                            persistence = True, persistence_type = 'session'
+                                        ),
+                                        dbc.Input(
+                                            type="numeric", 
+                                            id={'type': 'hkl', 'index': 'k'}, 
+                                            placeholder="k", 
+                                            value=1,
+                                            persistence = True, persistence_type = 'session'
+                                        ),
+                                        dbc.Input(
+                                            type="numeric", 
+                                            id={'type': 'hkl', 'index': 'l'}, 
+                                            placeholder="l", 
+                                            value=1,
+                                            persistence = True, persistence_type = 'session'
+                                        ),
+                                    ], size="sm")
+                                ], className = "my-auto", width=9),
                             ],
                             row=True,
                         ),
+                        dbc.FormGroup(
+                            [
+                                dbc.Label("Scan mode", width=3),
+                                dbc.Col([
+                                    dbc.RadioItems(
+                                        id="scanmode_select",
+                                        options=[
+                                            {"label": "Angle",  "value": 'angle'},
+                                            {"label": "Energy", "value": 'energy'},
+                                        ],
+                                        value = 'angle',
+                                        persistence = True, persistence_type = 'session'
+                                    ),
+                                ], className = "my-auto", width=3),
+                                dbc.Label("Energy (eV)", id = "scanmode_fixed_label", width=3),
+                                dbc.Col([
+                                    dbc.Input(
+                                        type="numeric", 
+                                        id="scanmode_fixed_value", 
+                                        value = 15000,
+                                        persistence = True, persistence_type = 'session',
+                                    )
+                                ], className = "my-auto", width=3),
+                            ],
+                            row=True,
+                        ),
+                        dbc.FormGroup(
+                            [
+                                dbc.Label("Δx", width=3),
+                                dbc.Col([
+                                    dbc.Input(
+                                        type="numeric", 
+                                        id="xrange_delta", 
+                                        value = 5,
+                                        persistence = True, persistence_type = 'session',
+                                    ),
+                                ], className = "my-auto", width=3),
+                                dbc.Label("# points", width=3),
+                                dbc.Col([
+                                    dbc.Input(
+                                        type="numeric", 
+                                        id="xrange_npts", 
+                                        value = 501,
+                                        persistence = True, persistence_type = 'session',
+                                    )
+                                ], className = "my-auto", width=3),
+                            ],
+                            row=True,
+                        ),
+                    ], width = 6),
+                    # Sites table
+                    dbc.Col([
+                        html.Div(sites_table, style = {'overflowY': 'auto', 'height': '210px'}),
                     ]),
-                    dbc.FormGroup(
-                        [
-                            dbc.Label("(hkl)", width=3),
-                            dbc.Col([
-                                dbc.InputGroup([
-                                    dbc.Input(type="numeric", id={'type': 'hkl', 'index': 'h'}, placeholder="h", value=1),
-                                    dbc.Input(type="numeric", id={'type': 'hkl', 'index': 'k'}, placeholder="k", value=1),
-                                    dbc.Input(type="numeric", id={'type': 'hkl', 'index': 'l'}, placeholder="l", value=1),
-                                ], size="sm")
-                            ], className = "my-auto", width=9),
-                        ],
-                        row=True,
-                    ),
-                    dbc.FormGroup(
-                        [
-                            dbc.Label("Scan mode", width=3),
-                            dbc.Col([
-                                dbc.RadioItems(
-                                    id="scanmode_select",
-                                    options=[
-                                        {"label": "Angle",  "value": 'angle'},
-                                        {"label": "Energy", "value": 'energy'},
-                                    ],
-                                    value = 'angle',
-                                ),
-                            ], className = "my-auto", width=3),
-                            dbc.Label("Energy (eV)", id = "scanmode_fixed_label", width=3),
-                            dbc.Col([
-                                dbc.Input(type="numeric", id="scanmode_fixed_value")
-                            ], className = "my-auto", width=3),
-                        ],
-                        row=True,
-                    ),
-                    dbc.FormGroup(
-                        [
-                            dbc.Label("Δx", width=3),
-                            dbc.Col([
-                                dbc.Input(type="numeric", id="xrange_delta", value = 30),
-                            ], className = "my-auto", width=3),
-                            dbc.Label("# points", width=3),
-                            dbc.Col([
-                                dbc.Input(type="numeric", id="xrange_npts", value = 501)
-                            ], className = "my-auto", width=3),
-                        ],
-                        row=True,
-                    ),
-                ], width = 6),
-                # Sites table
-                dbc.Col([
-                    html.Div(sites_table, style = {'overflowY': 'auto', 'height': '210px'}),
                 ]),
-            ]),
+            ),
             html.Hr(),
-            dbc.Row([
-                # Refl, Phase
-                dbc.Col([
-                    html.Div(id = 'figure_refl')
-                ]),
-                # EF
-                dbc.Col([
-                    html.Div(id = 'figure_elf')
+            dbc.Alert(
+                id = 'results_alert',
+                is_open = False,
+                duration = 2000,
+            ),
+            dbc.Container([
+                dbc.Row(
+                    [
+                        # Controls and calculated parameters
+                        dbc.Col([
+                            dbc.Button('Calculate', id = 'results_calculate_button'),
+                        ], width = 4),
+                        dbc.Col(
+                            [
+                                dbc.Row([
+                                    dbc.Col(dcc.Markdown('d<sub>hkl</sub>', dangerously_allow_html = True), width = 2),
+                                    dbc.Col(id = {'type': 'results_parameter', 'index': 'd_hkl'}, width=10),
+                                ]),
+                                dbc.Row([
+                                    dbc.Col(dcc.Markdown('Θ<sub>B</sub>', dangerously_allow_html = True), width = 2),
+                                    dbc.Col(id = {'type': 'results_parameter', 'index': 'Bragg_angle'}, width=10),
+                                ]),
+                                dbc.Row([
+                                    dbc.Col(dcc.Markdown('E<sub>B</sub>', dangerously_allow_html = True), width = 2),
+                                    dbc.Col(id = {'type': 'results_parameter', 'index': 'Bragg_energy'}, width=10),
+                                ]),
+                                dbc.Row([
+                                    dbc.Col(dcc.Markdown('λ<sub>B</sub>', dangerously_allow_html = True), width = 2),
+                                    dbc.Col(id = {'type': 'results_parameter', 'index': 'Bragg_wavelength'}, width=10),
+                                ]),
+                            ], 
+                            width = 4,
+                        ),
+                        dbc.Col(
+                            [
+                                dbc.Row([
+                                    dbc.Col(dcc.Markdown('F<sub>0</sub>', dangerously_allow_html = True), width = 2),
+                                    dbc.Col(id = {'type': 'results_parameter', 'index': 'F_0'}, width=10),
+                                ]),
+                                dbc.Row([
+                                    dbc.Col(dcc.Markdown('F<sub>h</sub>', dangerously_allow_html = True), width = 2),
+                                    dbc.Col(id = {'type': 'results_parameter', 'index': 'F_H'}, width=10),
+                                ]),
+                                dbc.Row([
+                                    dbc.Col(dcc.Markdown('F<sub>hb</sub>', dangerously_allow_html = True), width = 2),
+                                    dbc.Col(id = {'type': 'results_parameter', 'index': 'F_Hb'}, width=10),
+                                ]),
+                                dbc.Row([
+                                    dbc.Col(dcc.Markdown('φ<sub>h</sub>', dangerously_allow_html = True), width = 2),
+                                    dbc.Col(id = {'type': 'results_parameter', 'index': 'Angle_F_H'}, width=10),
+                                ]),
+                            ], 
+                            width = 4,
+                        ),
+                    ],
+                    style = {'font-size': '9pt'},
+                ),
+                dbc.Row([
+                    # Refl, Phase
+                    dbc.Col([
+                        html.Div(id = 'results_figure_refl')
+                    ], width = 6),
+                    # EF
+                    dbc.Col([
+                        html.Div(id = 'results_figure_elf')
+                    ], width = 6),
                 ]),
             ]),
             dbc.Row([
