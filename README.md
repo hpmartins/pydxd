@@ -1,1 +1,1 @@
-# Python X-Ray Optics
+# Python Dynamical X-ray Diffraction
