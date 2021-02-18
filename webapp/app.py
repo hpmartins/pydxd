@@ -8,11 +8,16 @@ import dash_table
 import plotly.express as px
 import pandas as pd
 import pkg_resources
-import glob
 
 from callbacks import register_callbacks
 
-app = dash.Dash(__name__, external_stylesheets = [dbc.themes.BOOTSTRAP])
+meta_viewport = {"name": "viewport", "content": "width=device-width, initial-scale=1, shrink-to-fit=no"}
+    
+
+app = dash.Dash(__name__, 
+                meta_tags=[meta_viewport],
+                external_stylesheets = [dbc.themes.BOOTSTRAP]
+)
 
 # app.enable_dev_tools(
 #         dev_tools_ui=True,
@@ -83,25 +88,8 @@ sites_table = dash_table.DataTable(
     data = [],
     editable = False,
     page_action = 'none',
-    # style_table={'height': '210px', 'overflowY': 'scroll'},
-    # style_cell={
-    #     'font-family': 'sans-serif',
-    #     'font-size': '9pt',
-    #     'overflow': 'hidden',
-    #     'textOverflow': 'ellipsis',
-    #     'maxWidth': 0
-    # },
-    # style_table = {'font-family': 'sans-serif', 'font-size': '9pt'},#, 'height': '200px', 'overflowY': 'auto'},
     style_header= {'fontWeight': 'bold'},
     style_cell  = {'font-family': 'sans-serif', 'textAlign': 'center', 'whiteSpace': 'normal', 'font-size': '9pt'},
-    # style_cell_conditional=[
-    #     {'if': {'column_id': 'Z'}, 'width': '20px'},
-    #     {'if': {'column_id': 'name'}, 'width': '30px'},
-    #     {'if': {'column_id': 'label'}, 'width': '30px'},
-    #     {'if': {'column_id': 'zcoord'}, 'width': '40px'},
-    #     {'if': {'column_id': 'Hdotr'}, 'width': '30px'},
-    #     {'if': {'column_id': 'cohpos'}, 'width': '30px'},
-    # ],
     id='sites_table',
 )
 
@@ -175,6 +163,7 @@ app.layout = dbc.Container(
                                         type="numeric", 
                                         id="scanmode_fixed_value", 
                                         value = 15000,
+                                        bs_size = "sm",
                                         persistence = True, persistence_type = 'session',
                                     )
                                 ], className = "my-auto", width=3),
@@ -189,6 +178,7 @@ app.layout = dbc.Container(
                                         type="numeric", 
                                         id="xrange_delta", 
                                         value = 5,
+                                        bs_size = "sm",
                                         persistence = True, persistence_type = 'session',
                                     ),
                                 ], className = "my-auto", width=3),
@@ -198,6 +188,7 @@ app.layout = dbc.Container(
                                         type="numeric", 
                                         id="xrange_npts", 
                                         value = 501,
+                                        bs_size = "sm",
                                         persistence = True, persistence_type = 'session',
                                     )
                                 ], className = "my-auto", width=3),
@@ -229,19 +220,19 @@ app.layout = dbc.Container(
                                 dbc.Row([
                                     dbc.Col(dcc.Markdown('d<sub>hkl</sub>', dangerously_allow_html = True), width = 2),
                                     dbc.Col(id = {'type': 'results_parameter', 'index': 'd_hkl'}, width=10),
-                                ]),
+                                ], className = 'rowresults'),
                                 dbc.Row([
                                     dbc.Col(dcc.Markdown('Θ<sub>B</sub>', dangerously_allow_html = True), width = 2),
                                     dbc.Col(id = {'type': 'results_parameter', 'index': 'Bragg_angle'}, width=10),
-                                ]),
+                                ], className = 'rowresults'),
                                 dbc.Row([
                                     dbc.Col(dcc.Markdown('E<sub>B</sub>', dangerously_allow_html = True), width = 2),
                                     dbc.Col(id = {'type': 'results_parameter', 'index': 'Bragg_energy'}, width=10),
-                                ]),
+                                ], className = 'rowresults'),
                                 dbc.Row([
                                     dbc.Col(dcc.Markdown('λ<sub>B</sub>', dangerously_allow_html = True), width = 2),
                                     dbc.Col(id = {'type': 'results_parameter', 'index': 'Bragg_wavelength'}, width=10),
-                                ]),
+                                ], className = 'rowresults'),
                             ], 
                             width = 4,
                         ),
@@ -250,24 +241,24 @@ app.layout = dbc.Container(
                                 dbc.Row([
                                     dbc.Col(dcc.Markdown('F<sub>0</sub>', dangerously_allow_html = True), width = 2),
                                     dbc.Col(id = {'type': 'results_parameter', 'index': 'F_0'}, width=10),
-                                ]),
+                                ], className = 'rowresults'),
                                 dbc.Row([
                                     dbc.Col(dcc.Markdown('F<sub>h</sub>', dangerously_allow_html = True), width = 2),
                                     dbc.Col(id = {'type': 'results_parameter', 'index': 'F_H'}, width=10),
-                                ]),
+                                ], className = 'rowresults'),
                                 dbc.Row([
                                     dbc.Col(dcc.Markdown('F<sub>hb</sub>', dangerously_allow_html = True), width = 2),
                                     dbc.Col(id = {'type': 'results_parameter', 'index': 'F_Hb'}, width=10),
-                                ]),
+                                ], className = 'rowresults'),
                                 dbc.Row([
                                     dbc.Col(dcc.Markdown('φ<sub>h</sub>', dangerously_allow_html = True), width = 2),
                                     dbc.Col(id = {'type': 'results_parameter', 'index': 'Angle_F_H'}, width=10),
-                                ]),
+                                ], className = 'rowresults'),
                             ], 
                             width = 4,
                         ),
                     ],
-                    style = {'font-size': '9pt'},
+                    className = "pb-2",
                 ),
                 dbc.Row([
                     # Refl, Phase

@@ -1,0 +1,42 @@
+/* large devices */
+#table_to_toggle button.toggle {
+    display: none;
+}
+
+body {
+   min-height: 100vh;
+   font-size: 9pt;
+}
+
+.dash-table-container .row {
+  display: block;
+  margin: 0;
+}
+
+.custom-select {
+    font-size: 9pt;
+}
+
+.jumbotron {
+    padding: 1rem 1rem;
+}
+
+.button-navbar {
+    margin: 0rem 0.5rem;
+}
+
+.dropdown-menu {
+    min-width: 5rem;
+}
+
+.Select-menu-outer {
+    display : block !important;
+}
+
+.rowresults {
+    height: 18px;
+}
+
+.form-group {
+    margin-bottom: 0.1rem;
+}
