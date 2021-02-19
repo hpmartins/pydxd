@@ -44,7 +44,7 @@ topbar = dbc.Navbar(
 ], className = "mb-2", sticky = "top")
 
 
-CIF_LIST = pkg_resources.resource_listdir('pydtd', "data/cif")
+CIF_LIST = pkg_resources.resource_listdir('pydxd', "data/cif")
 select_cif = select = dbc.Select(
     id="cif_select",
     options=[{"label": x, "value": x} for x in CIF_LIST],

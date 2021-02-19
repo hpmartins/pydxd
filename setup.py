@@ -8,9 +8,9 @@ from shutil import rmtree
 from setuptools import find_packages, setup, Command
 
 # Package meta-data.
-NAME = 'pydtd'
+NAME = 'pydxd'
 DESCRIPTION = ''
-URL = 'https://github.com/hpmartins/pydtd'
+URL = 'https://github.com/hpmartins/pydxd'
 EMAIL = 'hpmartins@gmail.com'
 AUTHOR = 'H. P. Martins'
 REQUIRES_PYTHON = '>=3.7.0'

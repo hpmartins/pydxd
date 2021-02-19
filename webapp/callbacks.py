@@ -16,7 +16,7 @@ import plotly.graph_objects as go
 import plotly.express as px
 from plotly.subplots import make_subplots
 
-from pydtd import Crystal
+from pydxd import Crystal
 
 def register_callbacks(app):
     
@@ -44,7 +44,7 @@ def register_callbacks(app):
             raise PreventUpdate
             
         hkl = [int(x) for x in hkl]
-        filepath = pkg_resources.resource_filename('pydtd', 'data/cif/{}'.format(file))
+        filepath = pkg_resources.resource_filename('pydxd', 'data/cif/{}'.format(file))
         dtdCrystal = Crystal(filepath, hkl = hkl)
                 
         return dtdCrystal.sites.to_dict('records')
@@ -113,7 +113,7 @@ def register_callbacks(app):
             )
         
         hkl = [int(x) for x in hkl]
-        filepath = pkg_resources.resource_filename('pydtd', 'data/cif/{}'.format(cif_file))
+        filepath = pkg_resources.resource_filename('pydxd', 'data/cif/{}'.format(cif_file))
         dtdCrystal = Crystal(filepath, hkl = hkl)
         
         if scanmode == 'angle':
