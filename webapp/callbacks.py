@@ -145,7 +145,7 @@ def register_callbacks(app):
         Refl_figure = make_subplots(specs=[[{"secondary_y": True}]])
         
         Refl_figure.add_trace(
-            go.Scatter(x = dtdCrystal.data.x, y = dtdCrystal.data.Refl, name="Refl", mode='lines'),
+            go.Scatter(x = dtdCrystal.data.x, y = dtdCrystal.data.Refl, name="Reflectivity", mode='lines'),
             secondary_y=False,
         )
         
@@ -154,13 +154,28 @@ def register_callbacks(app):
             secondary_y=True,
         )
         
+        Refl_figure.update_xaxes(showgrid = False, zeroline = False)
         if scanmode == 'angle':
-            Refl_figure.update_xaxes(title_text="Relative incident angle (°)")
+            Refl_figure.update_xaxes(
+                title_text="Relative incident angle (°)", 
+            )
         elif scanmode == 'energy':
-            Refl_figure.update_xaxes(title_text="Relative photon energy (eV)")
+            Refl_figure.update_xaxes(
+                title_text="Relative photon energy (eV)", 
+            )
             
-        Refl_figure.update_yaxes(title_text="Reflectivity", secondary_y=False)
-        Refl_figure.update_yaxes(title_text="Phase / π", secondary_y=True)
+        Refl_figure.update_yaxes(
+            title_text="Reflectivity", 
+            showgrid = False, 
+            zeroline = False, 
+            secondary_y = False
+        )
+        Refl_figure.update_yaxes(
+            title_text="Phase (rad)", 
+            showgrid = False, 
+            zeroline = False, 
+            secondary_y = True
+        )
         
         Refl_figure.update_layout(
             margin=dict(l=0, r=0, b=0, t=0),
@@ -168,7 +183,7 @@ def register_callbacks(app):
                 yanchor="top",
                 y=0.99,
                 xanchor="right",
-                x=0.99
+                x=0.93
             ),
         )
         
@@ -188,6 +203,17 @@ def register_callbacks(app):
             go.Heatmap(x = ELF_xrange, y = ELF_zrange, z = ELF_data.values, colorbar=dict(title='E-field'))
         )
         
+        for i in range(int(dtdCrystal.z_dist / dtdCrystal.d_hkl)+1):
+            ELF_figure.add_trace(
+                go.Scatter(
+                    x = [ELF_xrange.min(), ELF_xrange.max()],
+                    y = [i*dtdCrystal.d_hkl]*2,
+                    mode = 'lines',
+                    line=dict(width=1, color='black'), 
+                    showlegend = False,
+                )
+            )
+            
         group_by_element = dtdCrystal.sites.groupby('name')
         for name in group_by_element.groups.keys():
             group = group_by_element.get_group(name)
@@ -195,14 +221,15 @@ def register_callbacks(app):
             ELF_figure.add_trace(
                 go.Scatter(x = [ELF_xrange.mean()]*len(to_plot), y = to_plot, mode = 'markers', name = name)
             )
-        for i in range(int(dtdCrystal.z_dist / dtdCrystal.d_hkl)+1):
-            ELF_figure.add_hline(y = i*dtdCrystal.d_hkl)
-            
-        # ELF_figure = px.imshow(ELF_data, aspect = 'auto', x = ELF_xrange, y = ELF_zrange, height = 350)
-        
+
         ELF_figure.update_layout(
             margin=dict(l=0, r=0, b=0, t=0),
-            yaxis_range = [dtdCrystal.z_dist, 0],
+            xaxis = dict(
+                range = [ELF_xrange.min(), ELF_xrange.max()],
+            ),
+            yaxis = dict(
+                range = [dtdCrystal.z_dist, 0],
+            ),
             legend=dict(
                 yanchor="top",
                 y=0.99,
@@ -210,6 +237,8 @@ def register_callbacks(app):
                 x=0.99
             ),
         )
+        
+        print(ELF_figure.data)
         
         if scanmode == 'angle':
             ELF_figure.update_xaxes(title_text="Relative incident angle (°)")

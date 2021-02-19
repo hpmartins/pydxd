@@ -89,7 +89,7 @@ sites_table = dash_table.DataTable(
     editable = False,
     page_action = 'none',
     style_header= {'fontWeight': 'bold'},
-    style_cell  = {'font-family': 'sans-serif', 'textAlign': 'center', 'whiteSpace': 'normal', 'font-size': '9pt'},
+    style_cell  = {'font-family': 'sans-serif', 'textAlign': 'center', 'whiteSpace': 'normal', 'font-size': '11pt'},
     id='sites_table',
 )
 

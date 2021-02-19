@@ -5,7 +5,7 @@
 
 body {
    min-height: 100vh;
-   font-size: 9pt;
+   font-size: 11pt;
 }
 
 .dash-table-container .row {
@@ -14,7 +14,7 @@ body {
 }
 
 .custom-select {
-    font-size: 9pt;
+    font-size: 11pt;
 }
 
 .jumbotron {
