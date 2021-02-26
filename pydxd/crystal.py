@@ -6,6 +6,8 @@ Created on Fri Nov  8 14:01:41 2019
 """
 
 import periodictable as pt
+from periodictable.xsf import Xray
+
 import mendeleev as ml
 import numpy as np
 from pymatgen import Structure
@@ -20,7 +22,7 @@ class AttrDict(dict):
         self.__dict__ = self
 
 class Crystal(object):
-    def __init__(self, filename='', hkl=[1, 1, 1], nuc=1, structure=None):
+    def __init__(self, filename='', hkl=[1, 1, 1], nuc=1, structure=None, shift = [0, 0, 0]):
         # Load crystal structure and gets the symmetrized structure
         if structure:
             self.structure = structure
@@ -38,7 +40,7 @@ class Crystal(object):
 
         #
         self.hkl_norm = self.hkl/np.sqrt(np.dot(self.hkl, self.hkl))
-        self.z_dist = self.hkl_norm.dot(self.structure.lattice.abc)
+        self.z_dist = np.abs(self.hkl_norm.dot(self.structure.lattice.abc))
     
         # Vector perpendicular to the (hkl) direction
         tmpa = np.random.randn(3)
@@ -52,47 +54,11 @@ class Crystal(object):
             'Z': site.specie.number,
             'name': site.specie.name,
             'label': '{}{}'.format(site.specie.name, idx),
-            'zcoord': self.hkl_norm.dot(site.coords),
-            'Hdotr': self.H.dot(site.coords),
-            'cohpos': np.remainder(self.H.dot(site.coords), 1),
+            'zcoord': self.hkl_norm.dot(site.coords + shift),
+            'Hdotr': self.H.dot(site.coords + shift),
         } for idx, site in enumerate(self.structure.sites)])
         
         self.sites = self.sites.sort_values(by = 'zcoord', ignore_index = True, ascending = True)
-
-        
-    def set_mode(self, mode = 'angular', angle=0.0, energy=0.0, polarization='sigma', DWF = 0.0):
-        self.mode = mode
-        self.DWF = DWF
-        self.b = -1.0
-        
-        self.Bragg = AttrDict()
-        if mode == 'angular':
-            if energy == 0.0: # implementar erro
-                energy = 3000
-
-            self.Bragg.energy = energy
-
-            self.Bragg.wavelength = self.wavelength_energy_relation(self.Bragg.energy)
-            self.Bragg.angle  = np.degrees(np.arcsin(self.stol*self.Bragg.wavelength))
-        elif mode == 'energy':
-            if angle == 0.0:
-                self.Bragg.energy = energy
-                self.Bragg.wavelength = self.wavelength_energy_relation(self.Bragg.energy)
-                self.Bragg.angle  = np.degrees(np.arcsin(self.stol*self.Bragg.wavelength))
-            else:
-                self.Bragg.angle = angle
-                self.Bragg.wavelength = 2*self.d_hkl*np.sin(np.radians(self.Bragg.angle))
-                self.Bragg.energy = self.wavelength_energy_relation(self.Bragg.wavelength)
-
-        self.Bragg.angle_rad = np.radians(self.Bragg.angle)
-        # self.set_structure_factor(self.Bragg.energy)
-
-        # these relations are correct        
-        self.polarization = polarization 
-        if self.polarization == 'pi':
-            self.P = np.cos(2*self.Bragg.angle_rad)
-        elif self.polarization == 'sigma':
-            self.P = 1.0
 
     def volume(self):
         a = self.structure.lattice.a
@@ -109,8 +75,7 @@ class Crystal(object):
         h  = 4.135667662e-15
         c  = 299792458.0
         return h*c/(t*1e-10)
-        
-    
+
     def imfp(self, Ek=0):
         formula = pt.formula(self.structure.formula)
         density = formula.molecular_mass / (1e-24*self.volume())
@@ -177,16 +142,18 @@ class Crystal(object):
     # 2. Add Debye-Waller factor
     def set_structure_factor(self, energy):
         self.xray_scattering_factors = pd.DataFrame([{
-            'f0_0': xraydb.f0(site.Z, 0)[0],
-            'f0_Q': xraydb.f0(site.Z, self.stol)[0],
-            'f1': xraydb.f1_chantler(site.Z, energy),
-            'f2': xraydb.f2_chantler(site.Z, energy),
+            'f0': xraydb.f0(site.Z, self.stol)[0] - site.Z,
+            # 'f1': xraydb.f1_chantler(site.Z, energy) + site.Z,
+            # 'f2': xraydb.f2_chantler(site.Z, energy),
+            # 'f0_pt_Q': Xray(pt.elements[site.Z]).f0(4*np.pi*self.stol) - site.Z,
+            'f1': Xray(pt.elements[site.Z]).scattering_factors(energy=energy/1000)[0],
+            'f2': Xray(pt.elements[site.Z]).scattering_factors(energy=energy/1000)[1],
         } for idx, site in self.sites.iterrows()])
         
         self.xray_structure_factors = pd.DataFrame([{
-            'F_0':   xsf.f0_0 + xsf.f1 + 1j*xsf.f2,
-            'F_H':  (xsf.f0_Q + xsf.f1 + 1j*xsf.f2)*np.exp(-self.DWF)*np.exp(-2j*np.pi*self.sites.loc[idx, 'Hdotr']),
-            'F_Hb': (xsf.f0_Q + xsf.f1 + 1j*xsf.f2)*np.exp(-self.DWF)*np.exp(+2j*np.pi*self.sites.loc[idx, 'Hdotr']),
+            'F_0':   xsf.f1 + 1j*xsf.f2,
+            'F_H':  (xsf.f0 + xsf.f1 + 1j*xsf.f2)*np.exp(-self.DWF)*np.exp( 2j*np.pi*self.sites.loc[idx, 'Hdotr']),
+            'F_Hb': (xsf.f0 + xsf.f1 + 1j*xsf.f2)*np.exp(-self.DWF)*np.exp(-2j*np.pi*self.sites.loc[idx, 'Hdotr']),
         } for idx, xsf in self.xray_scattering_factors.iterrows()])
         
         self.F_0  = self.xray_structure_factors['F_0'].sum()
@@ -222,7 +189,42 @@ class Crystal(object):
     # Finally, the complex variable eta is:
     #
     # eta = a/sqrt(Chi_H*Chi_Hb)
-    def calc_reflectivity(self, delta=20, npts=1001, Mono=False, gwidth=False):
+    def calc_reflectivity(self, delta=20, npts=1001, Mono=False, gwidth=False,
+                          mode = 'angular', angle=0.0, energy=0.0, polarization='sigma', DWF = 0.0):
+        
+        self.mode = mode
+        self.DWF = DWF
+        self.b = -1.0
+        
+        self.Bragg = AttrDict()
+        if mode == 'angular':
+            if energy == 0.0: # implementar erro
+                energy = 3000
+
+            self.Bragg.energy = energy
+
+            self.Bragg.wavelength = self.wavelength_energy_relation(self.Bragg.energy)
+            self.Bragg.angle  = np.degrees(np.arcsin(self.stol*self.Bragg.wavelength))
+        elif mode == 'energy':
+            if angle == 0.0:
+                self.Bragg.energy = energy
+                self.Bragg.wavelength = self.wavelength_energy_relation(self.Bragg.energy)
+                self.Bragg.angle  = np.degrees(np.arcsin(self.stol*self.Bragg.wavelength))
+            else:
+                self.Bragg.angle = angle
+                self.Bragg.wavelength = 2*self.d_hkl*np.sin(np.radians(self.Bragg.angle))
+                self.Bragg.energy = self.wavelength_energy_relation(self.Bragg.wavelength)
+
+        self.Bragg.angle_rad = np.radians(self.Bragg.angle)
+        # these relations are correct        
+        self.polarization = polarization 
+        if self.polarization == 'pi':
+            self.P = np.cos(2*self.Bragg.angle_rad)
+        elif self.polarization == 'sigma':
+            self.P = 1.0
+            
+        self.set_structure_factor(self.Bragg.energy)
+        
         r0 = 2.8179403262e-15
         gamma = 1e10*(r0*self.wavelength_energy_relation(self.Bragg.energy)**2)/(np.pi*self.volume())
         self.Chi_0  = -gamma*self.F_0
@@ -233,27 +235,30 @@ class Crystal(object):
         self.info = AttrDict()
         self.info.backscattering_angle = np.degrees(np.pi/2 - 2*np.abs(self.Chi_0))
         self.info.angle_range    = np.degrees(np.abs(self.P)*np.sqrt(np.abs(self.Chi_H*self.Chi_Hb))/(np.sqrt(np.abs(self.b))*np.sin(2*self.Bragg.angle_rad)))
-        self.info.energy_offset  = np.real(self.Chi_0)*self.Bragg.energy/(2*np.sin(self.Bragg.angle_rad)**2)
         self.info.energy_range   = self.Bragg.energy*np.abs(self.P)*np.sqrt(np.abs(self.Chi_H*self.Chi_Hb))/(2*np.sin(self.Bragg.angle_rad)**2)
         self.info.extinct_length = (self.Bragg.wavelength*np.sin(self.Bragg.angle_rad)/(np.pi*np.sqrt(np.abs(self.Chi_H*self.Chi_Hb))))
 
         self.info.angle_width = 2*self.info.angle_range
         self.info.energy_width = 2*self.info.energy_range
         
-        offset = -self.Chi_0*((1 - self.b)/2) / np.sin(2*self.Bragg.angle_rad)
-        self.info.angle_offset = np.degrees(offset.real)
-        denominator = self.P*np.sqrt(np.abs(self.b)*self.Chi_H*self.Chi_Hb)/np.sin(2*self.Bragg.angle_rad)
+        offset = -self.Chi_0*((1 - self.b)/2) 
+        denominator = np.abs(self.P)*np.sqrt(np.abs(self.b)*self.Chi_H*self.Chi_Hb)
         
+        self.info.angle_offset = np.degrees(offset.real / np.sin(2*self.Bragg.angle_rad))
+        self.info.energy_offset = offset.real * self.Bragg.energy/(2*np.sin(self.Bragg.angle_rad)**2)
+
         if self.mode == 'angular':
             x_range = np.linspace(-delta*self.info.angle_range, delta*self.info.angle_range, npts) + self.info.angle_offset
-            x = np.radians(x_range)
+            xarg = self.b*np.radians(x_range)*np.sin(2*self.Bragg.angle_rad)
         elif self.mode == 'energy':
-            x_range = np.linspace(-delta*self.info.energy_range, delta*self.info.energy_range, npts) # deltaE
-            x = 2*(x_range/self.Bragg.energy)*(np.sin(self.Bragg.angle_rad))**2
+            x_range = np.linspace(-delta*self.info.energy_range, delta*self.info.energy_range, npts) + self.info.energy_offset
+            xarg = 2*self.b*(x_range/self.Bragg.energy)*(np.sin(self.Bragg.angle_rad))**2
             
-        self.eta = (x - offset) / denominator
+        self.eta = (xarg + offset) / denominator
         
-        prefactor = np.sign(self.P)*(np.sign(self.b)/np.sqrt(np.abs(self.b)))*(np.sqrt(self.Chi_H*self.Chi_Hb)/self.Chi_Hb)
+        # prefactor = np.sign(self.P)*(np.sign(self.b)/np.sqrt(np.abs(self.b)))*(np.sqrt(self.Chi_H*self.Chi_Hb)/self.Chi_Hb)
+        prefactor = -np.sign(self.P)*np.sqrt(np.abs(self.b))*np.sqrt(self.F_H/self.F_Hb)
+        # prefactor = np.sign(self.P)*(np.sign(self.b)/np.sqrt(np.abs(self.b)))*(np.sqrt(self.Chi_H/self.Chi_Hb))
 
         self.EH_E0 = prefactor*np.piecewise(self.eta, self.eta.real <= 0, 
                                 [
@@ -262,36 +267,47 @@ class Crystal(object):
                                 ])
         
         self.x_range = x_range
-        self.Refl = np.abs(self.EH_E0)**2
-        self.Phase = np.angle(self.EH_E0)
         
-        shift_mask = (self.Phase > (np.pi + np.angle(self.F_H))) | (self.Phase < np.angle(self.F_H))
-        self.Phase[shift_mask] = np.remainder(self.Phase[shift_mask] + np.angle(self.F_H), 2*np.pi) - np.angle(self.F_H)
+        Refl = np.abs(self.EH_E0)**2
+        Phase = np.angle(self.EH_E0)
         
+        shift_mask = (Phase > (np.pi + np.angle(self.F_H))) | (Phase < np.angle(self.F_H))
+        Phase[shift_mask] = np.remainder(Phase[shift_mask] + np.angle(self.F_H), 2*np.pi) - np.angle(self.F_H)
+        
+        self.Refl_unbroadened = Refl
+        self.Phase_unbroadened = Phase
+
+        self.Refl = Refl
+        self.Phase = Phase
         self.Mono = Mono
-        self.Refl_conv_Mono = None
-        self.Phase_conv_Mono = None
-        
-        # # Convolutes with monochromator R
-        if self.Mono:
-            self.Mono.calc_reflectivity(delta=delta, npts=npts)
-            self.Mono.Refl_shifted = np.interp(self.Mono.x_range, self.Mono.x_range, self.Mono.Refl)
+        if (gwidth and gwidth > 0.0) and not self.Mono:
+            gsmear = lmfit.lineshapes.gaussian(self.x_range, center = self.x_range.mean(), sigma = gwidth)
+            gsmear = gsmear / sum(gsmear)
             
-            if gwidth and gwidth > 0.0:
-                gsmear = lmfit.lineshapes.gaussian(self.Mono.x_range, center = self.Mono.x_range.mean(), sigma = gwidth)
-                gsmear = gsmear / sum(gsmear)
-                self.Mono.Refl_shifted = np.convolve(self.Mono.Refl_shifted, gsmear, mode='same')
+            self.Refl = np.convolve(Refl, gsmear, mode='same')
+            self.Phase = np.convolve(Phase, gsmear, mode='same')
+            
+        # if Mono:
+            
+        #     Mono.calc_reflectivity(delta=delta, npts=npts)
+            # Mono.Refl_shifted = np.interp(Mono.x_range, Mono.x_range, Mono.Refl_unbroadened)
+            
+            # if gwidth and gwidth > 0.0:
+            #     gsmear = lmfit.lineshapes.gaussian(self.Mono.x_range, center = self.Mono.x_range.mean(), sigma = gwidth)
+            #     gsmear = gsmear / sum(gsmear)
+            #     self.Mono.Refl_shifted = np.convolve(self.Mono.Refl_shifted, gsmear, mode='same')
 
-            self.Mono.Squared_Refl = self.Mono.Refl_shifted**2/np.sum(self.Mono.Refl_shifted**2)
+            # self.Mono.Squared_Refl = self.Mono.Refl_shifted**2/np.sum(self.Mono.Refl_shifted**2)
 
-            self.Refl_conv_Mono = np.convolve(self.Refl, self.Mono.Squared_Refl, mode='same')
-            self.Phase_conv_Mono = np.convolve(self.Phase, self.Mono.Squared_Refl, mode='same')
-        else:
-            if gwidth and gwidth > 0.0:
-                gsmear = lmfit.lineshapes.gaussian(self.x_range, center = self.x_range.mean(), sigma = gwidth)
-                gsmear = gsmear / sum(gsmear)
-                self.Refl = np.convolve(self.Refl, gsmear, mode='same')
-                self.Phase = np.convolve(self.Phase, gsmear, mode='same')
+            # self.Refl_conv_Mono = np.convolve(self.Refl, self.Mono.Squared_Refl, mode='same')
+            # self.Phase_conv_Mono = np.convolve(self.Phase, self.Mono.Squared_Refl, mode='same')
+        # else:
+        #     if gwidth and gwidth > 0.0:
+                # gsmear = lmfit.lineshapes.gaussian(self.x_range, center = self.x_range.mean(), sigma = gwidth)
+                # gsmear = gsmear / sum(gsmear)
+                # self.Refl = np.convolve(self.Refl, gsmear, mode='same')
+                # self.Phase = np.convolve(self.Phase, gsmear, mode='same')
+    
     
         self.data = pd.DataFrame({'x': self.x_range, 'Refl': self.Refl, 'Phase': self.Phase})
         
@@ -302,10 +318,6 @@ class Crystal(object):
         else:
             R = self.Refl
             P = self.Phase
-            
-        S_R = (1 + Q)/(1 - Q)
-        Psi = np.arctan(Q*np.tan(np.radians(Delta)))
-        S_I = ((S_R + 1)/2)*np.sqrt(1 + (np.tan(Psi))**2)
 
         return 1 + R + 2*np.sqrt(R)*CF*np.cos(P - 2*np.pi*CP)
     
@@ -317,7 +329,7 @@ class Crystal(object):
             R = self.Refl
             P = self.Phase
         
-        return 2*self.P*np.sqrt(R)*CF*np.cos(P + 2*np.pi*CP)
+        return 2*self.P*np.sqrt(R)*CF*np.cos(P - 2*np.pi*CP)
     
     def Electric_Field(self, z, zmin):
         zpos = z - zmin

@@ -24,12 +24,6 @@ app = dash.Dash(__name__,
 #         dev_tools_serve_dev_bundles=True,
 # )
 
-df = pd.DataFrame({
-    "Fruit": ["Apples", "Oranges", "Bananas", "Apples", "Oranges", "Bananas"],
-    "Amount": [4, 1, 2, 2, 4, 5],
-    "City": ["SF", "SF", "SF", "Montreal", "Montreal", "Montreal"]
-})
-fig = px.bar(df, x="Fruit", y="Amount", color="City", barmode="group")
 
 topbar = dbc.Navbar(
     [
@@ -48,7 +42,7 @@ CIF_LIST = pkg_resources.resource_listdir('pydxd', "data/cif")
 select_cif = select = dbc.Select(
     id="cif_select",
     options=[{"label": x, "value": x} for x in CIF_LIST],
-    value = 'Cu_mp-30_symmetrized.cif',
+    value = 'Cu_mp-30_conventional_standard.cif',
     persistence = True, persistence_type = 'session',
 )
 
@@ -263,12 +257,27 @@ app.layout = dbc.Container(
                 dbc.Row([
                     # Refl, Phase
                     dbc.Col([
-                        html.Div(id = 'results_figure_refl')
-                    ], width = 6),
+                        html.Div(dcc.Graph(id = 'results_figure_refl'))
+                    ], width = 5),
                     # EF
                     dbc.Col([
-                        html.Div(id = 'results_figure_elf')
-                    ], width = 6),
+                        dbc.Row([
+                            dbc.Col([
+                            ], width = 3),
+                            dbc.Col([
+                                html.Div(dcc.Graph(id = 'results_figure_elf_x'))
+                            ], width = 9),
+                        ]),
+                        dbc.Row([
+                            dbc.Col([
+                                html.Div(dcc.Graph(id = 'results_figure_elf_y'))
+                            ], width = 3),
+                            dbc.Col([
+                                html.Div(dcc.Graph(id = 'results_figure_elf'))
+                            ], width = 9),
+                        ])
+                        
+                    ], width = 7),
                 ]),
             ]),
             dbc.Row([
