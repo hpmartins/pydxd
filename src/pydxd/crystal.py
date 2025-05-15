@@ -10,7 +10,7 @@ from periodictable.xsf import Xray
 
 import mendeleev as ml
 import numpy as np
-from pymatgen import Structure
+from pymatgen.core.structure import Structure
 from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
 import lmfit
 import pandas as pd
