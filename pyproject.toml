@@ -1,0 +1,38 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pydxd"
+version = "0.1.0"
+description = ""
+readme = "README.md"
+requires-python = ">=3.13"
+license = "MIT"
+authors = [
+    { name = "H. P. Martins", email = "hpmartins@gmail.com" },
+]
+dependencies = [
+    "numpy",
+    "pandas",
+    "periodictable",
+    "mendeleev",
+    "pymatgen",
+    "lmfit",
+    "xraydb",
+]
+
+[project.urls]
+Homepage = "https://github.com/hpmartins/pydxd"
+
+[project.optional-dependencies]
+dev = [
+    "flake8",
+    "pytest",
+    "ipykernel",
+    "black",
+    "pip-tools",
+]
+
+[tool.isort]
+profile = "black"
