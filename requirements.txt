@@ -75,7 +75,7 @@ pandas==2.2.3
     #   pymatgen
 periodictable==2.0.2
     # via pydxd (pyproject.toml)
-pillow==11.2.1
+pillow==11.3.0
     # via matplotlib
 platformdirs==4.3.8
     # via xraydb
