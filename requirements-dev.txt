@@ -244,7 +244,7 @@ uncertainties==3.2.3
     # via
     #   lmfit
     #   pymatgen
-urllib3==2.4.0
+urllib3==2.6.3
     # via requests
 wcwidth==0.2.13
     # via prompt-toolkit
